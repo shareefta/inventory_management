@@ -129,7 +129,18 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
         <Divider sx={{ borderStyle: 'dashed' }} />
 
         <Box sx={{ p: 1 }}>
-          <Button fullWidth color="error" size="medium" variant="text">
+          <Button
+            fullWidth
+            color="error"
+            size="medium"
+            variant="text"
+            onClick={() => {
+              localStorage.removeItem('token');
+              localStorage.removeItem('refresh');
+              localStorage.removeItem('user');
+              router.replace('/sign-in'); // Optional: use replace to avoid going back to dashboard
+            }}
+          >
             Logout
           </Button>
         </Box>

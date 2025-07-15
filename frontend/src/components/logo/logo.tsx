@@ -173,22 +173,21 @@ export function Logo({
       className={mergeClasses([logoClasses.root, className])}
       sx={[
         {
-          width: 40,
-          height: 40,
-          ...(!isSingle && { width: 102, height: 36 }),
+          width: isSingle ? 40 : 102,
+          height: isSingle ? 40 : 36,
           ...(disabled && { pointerEvents: 'none' }),
-        },
-        ...(Array.isArray(sx) ? sx : [sx]),
-      ]}
-      {...other}
+          },
+          ...(Array.isArray(sx) ? sx : [sx]),
+        ]}
+        {...other}
     >
       {/* {isSingle ? singleLogo : fullLogo} */}
       <img
-        src="/logo.jpg"
+        src={isSingle ? '/logo.jpg' : '/logo2.png'}
         alt="AL ATA & RAZA WORLD"
         style={{
-          width: isSingle ? 40 : 102,
-          height: isSingle ? 40 : 36,
+          width: '100%',
+          height: '100%',
           objectFit: 'contain',
       }}
     />

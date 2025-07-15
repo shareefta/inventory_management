@@ -19,11 +19,6 @@ export const navData = [
     icon: icon('ic-analytics'),
   },
   {
-    title: 'User',
-    path: '/user',
-    icon: icon('ic-user'),
-  },
-  {
     title: 'Product',
     path: '/products',
     icon: icon('ic-cart'),
@@ -34,18 +29,38 @@ export const navData = [
     ),
   },
   {
-    title: 'Blog',
-    path: '/blog',
-    icon: icon('ic-blog'),
+    title: 'Purchases',
+    path: '/purchases',
+    icon: icon('ic-purchase'),
   },
   {
-    title: 'Sign in',
-    path: '/sign-in',
-    icon: icon('ic-lock'),
+    title: 'Sales',
+    path: '/sales',
+    icon: icon('ic-sales'),
   },
   {
-    title: 'Not found',
-    path: '/404',
-    icon: icon('ic-disabled'),
+    title: 'Orders',
+    path: '/orders',
+    icon: icon('ic-order'),
   },
+  {
+    title: 'Delivery Partners',
+    path: '/user',
+    icon: icon('ic-delivery'),
+  },
+  // {
+  //   title: 'Blog',
+  //   path: '/blog',
+  //   icon: icon('ic-blog'),
+  // },
+  // {
+  //   title: 'Sign in',
+  //   path: '/sign-in',
+  //   icon: icon('ic-lock'),
+  // },
+  // {
+  //   title: 'Not found',
+  //   path: '/404',
+  //   icon: icon('ic-disabled'),
+  // },
 ];

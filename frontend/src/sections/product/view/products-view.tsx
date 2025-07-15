@@ -1,152 +1,286 @@
-import { useState, useCallback } from 'react';
+import type { ProductProps } from 'src/sections/product/product-table-row';
+
+import { useCallback, useEffect, useState } from 'react';
 
 import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
 import Grid from '@mui/material/Grid';
-import Pagination from '@mui/material/Pagination';
+import Table from '@mui/material/Table';
+import Button from '@mui/material/Button';
+import TableBody from '@mui/material/TableBody';
 import Typography from '@mui/material/Typography';
+import TableContainer from '@mui/material/TableContainer';
+import TablePagination from '@mui/material/TablePagination';
+import CircularProgress from '@mui/material/CircularProgress';
 
-import { _products } from 'src/_mock';
+import { getProducts, deleteProduct, getCategories, getLocations } from 'src/api/products';
 import { DashboardContent } from 'src/layouts/dashboard';
 
-import { ProductItem } from '../product-item';
-import { ProductSort } from '../product-sort';
-import { CartIcon } from '../product-cart-widget';
-import { ProductFilters } from '../product-filters';
+import { Iconify } from 'src/components/iconify';
+import { Scrollbar } from 'src/components/scrollbar';
 
-import type { FiltersProps } from '../product-filters';
+import { TableNoData } from 'src/sections/product/table-no-data';
+import NewProductDialog from 'src/sections/product/new-product-dialog';
+import { TableEmptyRows } from 'src/sections/product/table-empty-rows';
+import { ProductTableRow } from 'src/sections/product/product-table-row';
+import { ProductTableHead } from 'src/sections/product/product-table-head';
+import { ProductTableToolbar } from 'src/sections/product/product-table-toolbar';
+import { applyFilter, emptyRows, getComparator } from 'src/sections/product/utils';
 
-// ----------------------------------------------------------------------
+import { useSnackbar } from 'notistack';
 
-const GENDER_OPTIONS = [
-  { value: 'men', label: 'Men' },
-  { value: 'women', label: 'Women' },
-  { value: 'kids', label: 'Kids' },
-];
+export function ProductView() {
+  const table = useTable();
+  const { enqueueSnackbar } = useSnackbar();
 
-const CATEGORY_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'shose', label: 'Shose' },
-  { value: 'apparel', label: 'Apparel' },
-  { value: 'accessories', label: 'Accessories' },
-];
+  const [filterName, setFilterName] = useState('');
+  const [products, setProducts] = useState<ProductProps[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openNewProduct, setOpenNewProduct] = useState(false);
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
 
-const RATING_OPTIONS = ['up4Star', 'up3Star', 'up2Star', 'up1Star'];
 
-const PRICE_OPTIONS = [
-  { value: 'below', label: 'Below $25' },
-  { value: 'between', label: 'Between $25 - $75' },
-  { value: 'above', label: 'Above $75' },
-];
 
-const COLOR_OPTIONS = [
-  '#00AB55',
-  '#000000',
-  '#FFFFFF',
-  '#FFC0CB',
-  '#FF4842',
-  '#1890FF',
-  '#94D82D',
-  '#FFC107',
-];
+  const fetchProducts = useCallback(() => {
+    setLoading(true);
+    getProducts()
+      .then((data) => {
+        setProducts(data);
+      })
+      .catch((error) => {
+        console.error('❌ Failed to fetch products', error);
+        enqueueSnackbar('Failed to fetch products', { variant: 'error' });
+      })
+      .finally(() => setLoading(false));
+  }, [enqueueSnackbar]);
 
-const defaultFilters = {
-  price: '',
-  gender: [GENDER_OPTIONS[0].value],
-  colors: [COLOR_OPTIONS[4]],
-  rating: RATING_OPTIONS[0],
-  category: CATEGORY_OPTIONS[0].value,
-};
+  useEffect(() => {
+    fetchProducts();
 
-export function ProductsView() {
-  const [sortBy, setSortBy] = useState('featured');
+    getCategories()
+      .then(setCategories)
+      .catch((err) => {
+        console.error('❌ Failed to fetch categories', err);
+        enqueueSnackbar('Failed to fetch categories', { variant: 'error' });
+      });
 
-  const [openFilter, setOpenFilter] = useState(false);
+    getLocations()
+      .then(setLocations)
+      .catch((err) => {
+        console.error('❌ Failed to fetch locations', err);
+        enqueueSnackbar('Failed to fetch locations', { variant: 'error' });
+      });
+  }, [fetchProducts]);
 
-  const [filters, setFilters] = useState<FiltersProps>(defaultFilters);
+  if (loading) return <CircularProgress />;
 
-  const handleOpenFilter = useCallback(() => {
-    setOpenFilter(true);
-  }, []);
+  const dataFiltered: ProductProps[] = applyFilter<ProductProps>({
+    inputData: Array.isArray(products) ? products : [],
+    comparator: getComparator<ProductProps>(table.order, table.orderBy as keyof ProductProps),
+    filterName,
+  });
 
-  const handleCloseFilter = useCallback(() => {
-    setOpenFilter(false);
-  }, []);
+  const notFound = !dataFiltered.length && !!filterName;
 
-  const handleSort = useCallback((newSort: string) => {
-    setSortBy(newSort);
-  }, []);
+  const handleNewProductSuccess = () => {
+    setOpenNewProduct(false);
+    fetchProducts();
+  };
 
-  const handleSetFilters = useCallback((updateState: Partial<FiltersProps>) => {
-    setFilters((prevValue) => ({ ...prevValue, ...updateState }));
-  }, []);
+  // Handle product delete
+  const handleDeleteProduct = async (id: string) => {
+    const confirm = window.confirm('Are you sure you want to delete this product?');
+    if (!confirm) return;
 
-  const canReset = Object.keys(filters).some(
-    (key) => filters[key as keyof FiltersProps] !== defaultFilters[key as keyof FiltersProps]
-  );
+    try {
+      await deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      enqueueSnackbar('Product deleted successfully!', { variant: 'success' });
+      // Also clear selection if selected
+      table.onSelectRow(id);
+    } catch (error) {
+      console.error('❌ Failed to delete product', error);
+      enqueueSnackbar('Failed to delete product.', { variant: 'error' });
+    }
+  };
+
+  // Handle product update (after inline editing saved)
+  const handleUpdateProductInList = (updatedProduct: ProductProps) => {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+    );
+    enqueueSnackbar('Product updated successfully!', { variant: 'success' });
+  };
 
   return (
-    <DashboardContent>
-      <CartIcon totalItems={8} />
-
-      <Typography variant="h4" sx={{ mb: 5 }}>
-        Products
-      </Typography>
-      <Box
-        sx={{
-          mb: 5,
-          display: 'flex',
-          alignItems: 'center',
-          flexWrap: 'wrap-reverse',
-          justifyContent: 'flex-end',
-        }}
-      >
-        <Box
-          sx={{
-            my: 1,
-            gap: 1,
-            flexShrink: 0,
-            display: 'flex',
-          }}
-        >
-          <ProductFilters
-            canReset={canReset}
-            filters={filters}
-            onSetFilters={handleSetFilters}
-            openFilter={openFilter}
-            onOpenFilter={handleOpenFilter}
-            onCloseFilter={handleCloseFilter}
-            onResetFilter={() => setFilters(defaultFilters)}
-            options={{
-              genders: GENDER_OPTIONS,
-              categories: CATEGORY_OPTIONS,
-              ratings: RATING_OPTIONS,
-              price: PRICE_OPTIONS,
-              colors: COLOR_OPTIONS,
-            }}
-          />
-
-          <ProductSort
-            sortBy={sortBy}
-            onSort={handleSort}
-            options={[
-              { value: 'featured', label: 'Featured' },
-              { value: 'newest', label: 'Newest' },
-              { value: 'priceDesc', label: 'Price: High-Low' },
-              { value: 'priceAsc', label: 'Price: Low-High' },
-            ]}
-          />
-        </Box>
-      </Box>
-
+    <DashboardContent maxWidth="xl">
       <Grid container spacing={3}>
-        {_products.map((product) => (
-          <Grid key={product.id} size={{ xs: 12, sm: 6, md: 3 }}>
-            <ProductItem product={product} />
-          </Grid>
-        ))}
-      </Grid>
+        <Grid size={{ md: 12 }}>
+          <Box sx={{ mb: 5, display: 'flex', alignItems: 'center' }}>
+            <Typography variant="h4" sx={{ flexGrow: 1 }}>
+              Products
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<Iconify icon="mingcute:add-line" />}
+              onClick={() => setOpenNewProduct(true)}
+            >
+              New Product
+            </Button>
+          </Box>
+          <NewProductDialog
+            open={openNewProduct}
+            onClose={() => setOpenNewProduct(false)}
+            onSuccess={handleNewProductSuccess}
+          />
+          <Card>
+            <ProductTableToolbar
+              numSelected={table.selected.length}
+              filterName={filterName}
+              onFilterName={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setFilterName(event.target.value);
+                table.onResetPage();
+              }}
+            />
+            <Scrollbar>
+              <TableContainer sx={{ minWidth: '100%' }}>
+                <Table sx={{ width: '100%', tableLayout: 'auto' }}>
+                  <ProductTableHead
+                    order={table.order}
+                    orderBy={table.orderBy}
+                    rowCount={products.length}
+                    numSelected={table.selected.length}
+                    onSort={table.onSort}
+                    onSelectAllRows={(checked) =>
+                      table.onSelectAllRows(
+                        checked,
+                        products.map((item: ProductProps) => item.id)
+                      )
+                    }
+                    headLabel={[
+                      { id: 'serial', label: '#' },
+                      { id: 'image', label: 'Image' },
+                      { id: 'uniqueId', label: 'Unique ID' },
+                      { id: 'itemName', label: 'Item Name' },
+                      { id: 'brand', label: 'Brand' },
+                      { id: 'serialNumber', label: 'Serial No.' },
+                      { id: 'variants', label: 'Variants' },
+                      { id: 'category', label: 'Category' },
+                      { id: 'rate', label: 'Rate' },
+                      { id: 'quantity', label: 'Qty' },
+                      { id: 'location', label: 'Location' },
+                      { id: 'active', label: 'Active', align: 'center' },
+                      { id: '' },
+                    ]}
+                  />
+                  <TableBody>
+                    {dataFiltered
+                      .slice(
+                        table.page * table.rowsPerPage,
+                        table.page * table.rowsPerPage + table.rowsPerPage
+                      )
+                      .map((row, index) => (
+                        <ProductTableRow
+                          key={row.id}
+                          row={row}
+                          selected={table.selected.includes(row.id)}
+                          onSelectRow={() => table.onSelectRow(row.id)}
+                          serial={index + 1 + table.page * table.rowsPerPage}
+                          categories={categories}
+                          locations={locations}
 
-      <Pagination count={10} color="primary" sx={{ mt: 8, mx: 'auto' }} />
+                          // Pass delete callback
+                          onDelete={handleDeleteProduct}
+
+                          // Pass update callback for inline edit save
+                          onEdit={handleUpdateProductInList}
+                        />
+                      ))}
+                    <TableEmptyRows
+                      height={68}
+                      emptyRows={emptyRows(table.page, table.rowsPerPage, products.length)}
+                    />
+                    {notFound && <TableNoData searchQuery={filterName} />}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Scrollbar>
+
+            <TablePagination
+              component="div"
+              page={table.page}
+              count={products.length}
+              rowsPerPage={table.rowsPerPage}
+              onPageChange={table.onChangePage}
+              rowsPerPageOptions={[5, 10, 25]}
+              onRowsPerPageChange={table.onChangeRowsPerPage}
+            />
+          </Card>
+        </Grid>
+      </Grid>      
     </DashboardContent>
   );
+}
+
+function useTable() {
+  const [page, setPage] = useState(0);
+  const [orderBy, setOrderBy] = useState('itemName');
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+
+  const onSort = useCallback(
+    (id: string) => {
+      const isAsc = orderBy === id && order === 'asc';
+      setOrder(isAsc ? 'desc' : 'asc');
+      setOrderBy(id);
+    },
+    [order, orderBy]
+  );
+
+  const onSelectAllRows = useCallback((checked: boolean, newSelecteds: string[]) => {
+    setSelected(checked ? newSelecteds : []);
+  }, []);
+
+  const onSelectRow = useCallback(
+    (inputValue: string) => {
+      const newSelected = selected.includes(inputValue)
+        ? selected.filter((value) => value !== inputValue)
+        : [...selected, inputValue];
+      setSelected(newSelected);
+    },
+    [selected]
+  );
+
+  const onResetPage = useCallback(() => {
+    setPage(0);
+  }, []);
+
+  const onChangePage = useCallback((event: unknown, newPage: number) => {
+    setPage(newPage);
+  }, []);
+
+  const onChangeRowsPerPage = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setRowsPerPage(parseInt(event.target.value, 10));
+      onResetPage();
+    },
+    [onResetPage]
+  );
+
+  return {
+    page,
+    order,
+    orderBy,
+    selected,
+    rowsPerPage,
+    onSort,
+    onSelectRow,
+    onSelectAllRows,
+    onResetPage,
+    onChangePage,
+    onChangeRowsPerPage,
+  };
 }

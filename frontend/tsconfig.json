@@ -20,7 +20,10 @@
     /* Linting */
     "strict": true,
     "noEmit": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+
+    /* 👇 Add this line */
+    "types": ["react", "react-dom", "notistack"]
   },
   "include": ["src"],
   "exclude": ["node_modules"],
