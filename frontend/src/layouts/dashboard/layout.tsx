@@ -1,13 +1,17 @@
 import type { Breakpoint } from '@mui/material/styles';
 
 import { merge } from 'es-toolkit';
+import { useEffect, useState } from 'react';
 import { useBoolean } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
 
+import { getProducts } from 'src/api/products';
 import { _langs, _notifications } from 'src/_mock';
+
+import { Label } from 'src/components/label';
 
 import { NavMobile, NavDesktop } from './nav';
 import { layoutClasses } from '../core/classes';
@@ -50,6 +54,51 @@ export function DashboardLayout({
   const theme = useTheme();
 
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
+  const [activeProductCount, setActiveProductCount] = useState<number>(0);
+  const [navItems, setNavItems] = useState(navData);
+
+  const fetchProductCount = async () => {
+    try {
+      const products = await getProducts();
+      const activeCount = products.filter((p) => p.active).length;
+
+      const updatedNav = navData.map((item) =>
+        item.title === 'Product'
+          ? {
+              ...item,
+              info:
+                activeCount > 0 ? (
+                  <Label color="error" variant="inverted">
+                    {activeCount}
+                  </Label>
+                ) : undefined,
+            }
+          : item
+      );
+
+      setNavItems(updatedNav);
+      setActiveProductCount(activeCount);
+    } catch (error) {
+      console.error('Failed to fetch product count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProductCount();
+  }, []);
+
+  useEffect(() => {
+    const handleProductUpdate = () => {
+      fetchProductCount();
+    };
+
+    window.addEventListener('product-update', handleProductUpdate);
+    fetchProductCount();
+
+    return () => {
+      window.removeEventListener('product-update', handleProductUpdate);
+    };
+  }, []);
 
   const renderHeader = () => {
     const headerSlotProps: HeaderSectionProps['slotProps'] = {
@@ -71,7 +120,7 @@ export function DashboardLayout({
             onClick={onOpen}
             sx={{ mr: 1, ml: -1, [theme.breakpoints.up(layoutQuery)]: { display: 'none' } }}
           />
-          <NavMobile data={navData} open={open} onClose={onClose} workspaces={[]} />
+          <NavMobile data={navItems} open={open} onClose={onClose} workspaces={[]} />
         </>
       ),
       rightArea: (
@@ -117,7 +166,7 @@ export function DashboardLayout({
        * @Sidebar
        *************************************** */
       sidebarSection={
-        <NavDesktop data={navData} layoutQuery={layoutQuery} workspaces={[]} />
+        <NavDesktop data={navItems} layoutQuery={layoutQuery} workspaces={[]} />
       }
       /** **************************************
        * @Footer

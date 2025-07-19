@@ -1,28 +1,49 @@
 import type { Theme } from '@mui/material/styles';
 
-import { useCallback, useState } from 'react';
+import { useSnackbar } from 'notistack';
+import { useEffect, useState } from 'react';
 
 import Box from '@mui/material/Box';
+import List from '@mui/material/List';
+import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Dialog from '@mui/material/Dialog';
+import Select from '@mui/material/Select';
 import Popover from '@mui/material/Popover';
+import { DialogTitle } from '@mui/material';
+import ListItem from '@mui/material/ListItem';
 import Checkbox from '@mui/material/Checkbox';
 import MenuList from '@mui/material/MenuList';
 import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
+import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
+import ListItemText from '@mui/material/ListItemText';
 import DialogContent from '@mui/material/DialogContent';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import Select from '@mui/material/Select';
 
-import { updateProduct } from 'src/api/products';
-import { useSnackbar } from 'notistack';
+import { updateProduct, deleteProduct } from 'src/api/products';
+
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 
+import ProductEditDialog from 'src/sections/product/product-edit-dialog'; 
+
 // ----------------------------------------------------------------------
+export type CategoryEntry = {
+  id: number;
+  name: string;
+};
+
+export type LocationEntry = {
+  id: number;
+  name: string;
+};
+
+export type ProductLocationEntry = {
+  location: LocationEntry;
+  quantity: number;
+};
 
 export type ProductProps = {
   id: string;
@@ -33,10 +54,12 @@ export type ProductProps = {
   variants: string;
   category: string;
   rate: number;
-  quantity: number;
-  location: string;
   active: boolean;
-  image?: string;
+  image?: string | File;
+  barcode_image?: string | File;
+  locations: ProductLocationEntry[];
+  total_quantity: number;
+  description?: string;
 };
 
 type ProductTableRowProps = {
@@ -65,7 +88,36 @@ export function ProductTableRow({
   const [openImageModal, setOpenImageModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedRow, setEditedRow] = useState(row);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { enqueueSnackbar } = useSnackbar();
+  const [locationPopoverAnchor, setLocationPopoverAnchor] = useState<null | HTMLElement>(null);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [descriptionText, setDescriptionText] = useState('');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printProduct, setPrintProduct] = useState<ProductProps | null>(null);
+
+  const handleItemClick = (desc: string) => {
+    setDescriptionText(desc);
+    setDescriptionOpen(true);
+  };
+
+  
+  useEffect(() => {
+    if (editedRow.image instanceof File) {
+      const objectUrl = URL.createObjectURL(editedRow.image);
+      setPreviewUrl(objectUrl);
+
+      return () => {
+        URL.revokeObjectURL(objectUrl);
+        setPreviewUrl(null);
+      };
+    } else {
+      setPreviewUrl(null);
+      return undefined;
+    }
+  }, [editedRow.image]);
 
   const handleOpenPopover = (event: React.MouseEvent<HTMLButtonElement>) => {
     setOpenPopover(event.currentTarget);
@@ -95,49 +147,76 @@ export function ProductTableRow({
     variants: product.variants,
     category: product.category,
     rate: product.rate,
-    quantity: product.quantity,
-    location: product.location,
     active: product.active,
     image: product.image,
+    description: product.description,
+    barcode_image: product.barcode_image,
   });
 
   const handleSave = async () => {
     try {
       // 🔄 Convert category and location name to ID
       const categoryId = categories.find((cat) => cat.name === editedRow.category)?.id;
-      const locationId = locations.find((loc) => loc.name === editedRow.location)?.id;
 
-      if (!categoryId || !locationId) {
+      if (!categoryId) {
         enqueueSnackbar('Invalid category or location', { variant: 'error' });
         return;
       }
 
-      // 🐍 Convert to snake_case keys
-      const payload = {
-        unique_id: editedRow.uniqueId,
-        item_name: editedRow.itemName,
-        brand: editedRow.brand,
-        serial_number: editedRow.serialNumber,
-        variants: editedRow.variants,
-        category: categoryId,
-        rate: parseFloat(editedRow.rate as any), // ensure number
-        quantity: editedRow.quantity,
-        location: locationId,
-        active: editedRow.active,
-        image: editedRow.image, // optional
-      };
+      const productLocationData = [];
 
-      console.log('✅ Payload to update:', payload);
+      for (const entry of editedRow.locations) {
+        const locationId = locations.find((loc) => loc.name === entry.location.name)?.id;
+        if (!locationId) {
+          enqueueSnackbar(`Invalid location: ${entry.location.name}`, { variant: 'error' });
+          return;
+        }
 
-      await updateProduct(editedRow.id, payload);
+        productLocationData.push({ location_id: locationId, quantity: entry.quantity });
+      }
+
+      const formData = new FormData();
+
+      formData.append('unique_id', editedRow.uniqueId);
+      formData.append('item_name', editedRow.itemName);
+      formData.append('brand', editedRow.brand);
+      formData.append('serial_number', editedRow.serialNumber);
+      formData.append('variants', editedRow.variants);
+      formData.append('category_id', String(categoryId));
+      formData.append('rate', String(editedRow.rate));
+      formData.append('locations', JSON.stringify(productLocationData));
+      formData.append('active', String(editedRow.active));
+      formData.append('description', editedRow.description || '');
+      
+      // Only append image if it's a new File (not a URL string)
+      if (editedRow.image instanceof File) {
+        formData.append('image', editedRow.image);
+      }
+
+      console.log('✅ Payload to update:', formData);
+
+      await updateProduct(editedRow.id, formData, true);
 
       enqueueSnackbar('Product updated successfully!', { variant: 'success' });
       setIsEditing(false);
-      onEdit?.({ ...editedRow, category: editedRow.category, location: editedRow.location });
-    } catch (error) {
+      onEdit?.({ ...editedRow, category: editedRow.category });
+    } catch (error: any) {
       console.error('❌ Failed to update product:', error);
+      if (error.response) {
+        console.error('📩 Backend response:', error.response.data);
+      }
       enqueueSnackbar('Failed to update product.', { variant: 'error' });
     }
+  };
+
+  const handlePrintDialogOpen = () => {
+    setPrintProduct(row);
+    setPrintDialogOpen(true);
+  };
+
+  const handlePrintDialogClose = () => {
+    setPrintDialogOpen(false);
+    setPrintProduct(null);
   };
 
   const handleCancel = () => {
@@ -156,129 +235,96 @@ export function ProductTableRow({
 
         <TableCell>
           <Avatar
-            src={imageError ? '/assets/images/fallback-image.png' : row.image || ''}
-            alt={row.itemName}
-            variant="rounded"
-            sx={{ width: 48, height: 48, cursor: 'pointer' }}
-            onClick={handleImageClick}
-            onError={() => setImageError(true)}
-          />
+              src={
+                imageError
+                  ? '/assets/images/fallback-image.png'
+                  : previewUrl ?? (typeof editedRow.image === 'string' ? editedRow.image : '')
+              }
+              alt={row.itemName}
+              variant="rounded"
+              sx={{ width: 48, height: 48, cursor: 'pointer' }}
+              onClick={handleImageClick}
+              onError={() => setImageError(true)}
+            />
         </TableCell>
 
-        <TableCell>{row.uniqueId}</TableCell>
-
         <TableCell>
-          {isEditing ? (
-            <TextField
-              variant="standard"
-              value={editedRow.itemName}
-              onChange={(e) => handleFieldChange('itemName', e.target.value)}
+          {typeof row.barcode_image === 'string' ? (
+            <img
+              src={row.barcode_image}
+              alt="Barcode"
+              style={{ height: 50, cursor: 'pointer' }}
+              onClick={handlePrintDialogOpen}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/no-barcode.png';
+              }}
             />
           ) : (
-            row.itemName
+            '—'
           )}
         </TableCell>
 
-        <TableCell>
-          {isEditing ? (
-            <TextField
-              variant="standard"
-              value={editedRow.brand}
-              onChange={(e) => handleFieldChange('brand', e.target.value)}
-            />
-          ) : (
-            row.brand
-          )}
+        <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
+          {row.uniqueId}
         </TableCell>
 
-        <TableCell>
-          {isEditing ? (
-            <TextField
-              variant="standard"
-              value={editedRow.serialNumber}
-              onChange={(e) => handleFieldChange('serialNumber', e.target.value)}
-            />
-          ) : (
-            row.serialNumber
-          )}
+        <TableCell 
+          sx={{
+            minWidth: { xs: 120, sm: 160 },
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => handleItemClick(row.description || '')}
+            sx={{ textTransform: 'none', padding: 0, minWidth: 'unset' }}
+          >
+            {row.itemName}
+          </Button>
         </TableCell>
 
-        <TableCell>
-          {isEditing ? (
-            <TextField
-              variant="standard"
-              value={editedRow.variants}
-              onChange={(e) => handleFieldChange('variants', e.target.value)}
-            />
-          ) : (
-            row.variants
-          )}
-        </TableCell>
+        <TableCell>{row.brand}</TableCell>
+          
+        <TableCell>{row.serialNumber}</TableCell>
+          
+        <TableCell>{row.variants}</TableCell>
+
+        <TableCell> {row.category} </TableCell>
+          
+        <TableCell> {row.rate} </TableCell>
 
         <TableCell>
-          {isEditing ? (
-            <Select
-              fullWidth
+          <>
+            <Button
+              variant="outlined"
               size="small"
-              value={editedRow.category}
-              onChange={(e) => handleFieldChange('category', e.target.value)}
+              onClick={(e) => setLocationPopoverAnchor(e.currentTarget)}
             >
-              {categories?.map((cat) => (
-                <MenuItem key={cat.id} value={cat.name}>
-                  {cat.name}
-                </MenuItem>
-              ))}
-            </Select>
-          ) : (
-            row.category
-          )}
-        </TableCell>
-
-        <TableCell>
-          {isEditing ? (
-            <TextField
-              variant="standard"
-              type="number"
-              value={editedRow.rate}
-              onChange={(e) => handleFieldChange('rate', Number(e.target.value))}
-            />
-          ) : (
-            row.rate
-          )}
-        </TableCell>
-
-        <TableCell>
-          {isEditing ? (
-            <TextField
-              variant="standard"
-              type="number"
-              value={editedRow.quantity}
-              onChange={(e) => handleFieldChange('quantity', Number(e.target.value))}
-            />
-          ) : (
-            row.quantity
-          )}
-        </TableCell>
-
-        <TableCell>
-          {isEditing ? (
-            <Select
-              fullWidth
-              size="small"
-              value={editedRow.location}
-              onChange={(e) => handleFieldChange('location', e.target.value)}
+              {row.total_quantity}
+            </Button>
+            <Popover
+              open={Boolean(locationPopoverAnchor)}
+              anchorEl={locationPopoverAnchor}
+              onClose={() => setLocationPopoverAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
             >
-              {locations?.map((loc) => (
-                <MenuItem key={loc.id} value={loc.name}>
-                  {loc.name}
-                </MenuItem>
-              ))}
-            </Select>
-          ) : (
-            row.location
-          )}
+              <List dense sx={{ p: 1, minWidth: 200 }}>
+                {row.locations?.map((loc, i) => (
+                  <ListItem key={i}>
+                    <ListItemText
+                      primary={loc.location.name}
+                      secondary={`Qty: ${loc.quantity}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Popover>
+          </>
         </TableCell>
-
+ 
         <TableCell align="center">
           {row.active ? (
             <Iconify width={22} icon="solar:check-circle-bold" sx={{ color: 'success.main' }} />
@@ -291,7 +337,7 @@ export function ProductTableRow({
           {isEditing ? (
             <>
               <Button onClick={handleSave} color="primary" size="small">
-                Save
+                Update
               </Button>
               <Button onClick={handleCancel} color="inherit" size="small">
                 Cancel
@@ -331,7 +377,8 @@ export function ProductTableRow({
           <MenuItem
             onClick={() => {
               handleClosePopover();
-              setIsEditing(true);
+              setProductToEdit(row);
+              setEditDialogOpen(true);
             }}
           >
             <Iconify icon="solar:pen-bold" />
@@ -368,11 +415,162 @@ export function ProductTableRow({
         <DialogContent sx={{ p: 0 }}>
           <Box
             component="img"
-            src={imageError ? '/assets/images/fallback-image.png' : row.image || ''}
+            src={
+              imageError
+                ? '/assets/images/fallback-image.png'
+                : previewUrl ?? (typeof editedRow.image === 'string' ? editedRow.image : '')
+            }
             alt={row.itemName}
             sx={{ width: '100%', height: 'auto', objectFit: 'contain' }}
           />
         </DialogContent>
+      </Dialog>
+      <Dialog open={descriptionOpen} onClose={() => setDescriptionOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Product Description</DialogTitle>
+        <DialogContent>
+          <Box sx={{ whiteSpace: 'pre-wrap' }}>
+            {descriptionText || 'No description available.'}
+          </Box>
+        </DialogContent>
+      </Dialog>
+      <ProductEditDialog
+        open={editDialogOpen}
+        product={productToEdit}
+        categories={categories}
+        locations={locations}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setProductToEdit(null);
+        }}
+        onSave={(updatedProduct) => {
+          setEditDialogOpen(false);
+          setProductToEdit(null);
+          onEdit?.(updatedProduct);
+        }}
+      />
+      <Dialog open={printDialogOpen} onClose={handlePrintDialogClose} maxWidth="xs" fullWidth>
+        <Box id="print-dialog-content" sx={{ p: 1, textAlign: 'center' }}>
+          {printProduct && (
+            <>
+              <img
+                src={typeof printProduct.barcode_image === 'string' ? printProduct.barcode_image : ''}
+                alt={`Barcode for ${printProduct.itemName}`}
+                style={{ height: 100, marginBottom: 20 }}
+              />
+              <div style={{ fontWeight: 'bold', fontSize: 18 }}>{printProduct.itemName}</div>
+              <div>{printProduct.variants}</div>
+              <div>{printProduct.brand}</div>
+              <div>Serial: {printProduct.serialNumber}</div>
+
+              <Button
+                variant="contained"
+                sx={{ mt: 3 }}
+                className="print-button"
+                onClick={() => {
+                  const printContent = document.getElementById('print-dialog-content');
+                  if (printContent) {
+                    const newWin = window.open('', '_blank');
+                    if (newWin) {
+                      newWin.document.write(`
+                        <html>
+                          <head>
+                            <title>Print Barcode</title>
+                            <style>
+                              @page {
+                                size: 4cm 2cm;
+                                margin: 0;
+                              }
+                              @media print {
+                                body {
+                                  margin: 0;
+                                  padding: 0;
+                                }
+                              }
+
+                              body {
+                                font-family: Arial, sans-serif;
+                              }
+
+                              .label {
+                                width: 4cm;
+                                height: 2cm;
+                                position: relative;
+                                box-sizing: border-box;
+                                padding: 0;
+                                margin: 0 auto;
+                                overflow: hidden;
+                                border: 1px solid black;
+                              }
+
+                              .item-name {
+                                position: absolute;
+                                top: 2px;
+                                left: 4px;
+                                font-size: 8px;
+                                font-weight: bold;
+                              }
+                              
+                              .variants {
+                                position: absolute;
+                                top: 2px;
+                                right: 4px;
+                                font-size: 7px;
+                                font-weight: bold;
+                                text-align: right;
+                              }
+
+                              .brand {
+                                position: absolute;
+                                bottom: 2px;
+                                left: 4px;
+                                font-size: 7px;
+                              }
+
+                              .serial {
+                                position: absolute;
+                                bottom: 2px;
+                                right: 4px;
+                                font-size: 7px;
+                              }
+
+                              .barcode {
+                                position: absolute;
+                                top: 50%;
+                                left: 50%;
+                                transform: translate(-50%, -50%);
+                                max-height: 1.2cm;
+                                max-width: 100%;
+                              }
+
+                              .print-button {
+                                display: none;
+                              }
+                            </style>
+                          </head>
+                          <body>
+                            <div class="label">
+                              <div class="item-name">${printProduct.itemName}</div>
+                              <div class="variants">${printProduct.variants || ''}</div>
+                              <img class="barcode" src="${typeof printProduct.barcode_image === 'string' ? printProduct.barcode_image : ''}" alt="Barcode" />
+                              <div class="brand">${printProduct.brand}</div>
+                              <div class="serial">SN: ${printProduct.serialNumber}</div>
+                            </div>
+                          </body>
+                        </html>
+                      `);
+                      newWin.document.close();
+                      newWin.focus();
+                      newWin.print();
+                      newWin.close();
+                    }
+                  }
+                }}
+              >
+                Print
+              </Button>
+            </>
+          )}
+        </Box>
       </Dialog>
     </>
   );

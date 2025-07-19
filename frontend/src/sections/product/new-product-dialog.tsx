@@ -13,9 +13,12 @@ import {
   Checkbox,
   CircularProgress,
   Box,
+  IconButton,
 } from '@mui/material';
 
 import { createProduct, getCategories, getLocations } from 'src/api/products';
+
+import { Iconify } from 'src/components/iconify';
 
 type Category = { id: number; name: string };
 type Location = { id: number; name: string };
@@ -37,11 +40,11 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
     serial_number: '',
     variants: '',
     category_id: '',
-    location_id: '',
+    locations: [] as { location_id: string | number; quantity: number }[],
     rate: '',
-    quantity: '',
     active: true,
     image: null as File | null,
+    description: '',
   });
 
   useEffect(() => {
@@ -64,12 +67,31 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
   };
 
   const handleSubmit = async () => {
+    console.log('🚀 Submit triggered');
+
     setLoading(true);
     try {
       const data = new FormData();
+
       for (const [key, val] of Object.entries(form)) {
-        if (val !== null) data.append(key, val as string | Blob);
+        if (key === 'locations') {
+          // ✅ Ensure each location_id is a number
+          const formattedLocations = (val as any[]).map((l) => ({
+            location_id: Number(l.location_id),
+            quantity: l.quantity,
+          }));
+          data.append('locations', JSON.stringify(formattedLocations));
+        } else if (val !== null) {
+          if (key === 'category_id') {
+            data.append('category_id', Number(val).toString());
+          } else if (key === 'description') {
+            data.append('description', val as string);
+          } else {
+            data.append(key, val as string | Blob);
+          }
+        }
       }
+      
       await createProduct(data);
       onSuccess();
       onClose();
@@ -79,14 +101,14 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
         serial_number: '',
         variants: '',
         category_id: '',
-        location_id: '',
+        locations: [],
         rate: '',
-        quantity: '',
         active: true,
         image: null,
+        description: '',
       });
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error('❌ Error submitting product:', error);
     } finally {
       setLoading(false);
     }
@@ -94,9 +116,8 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>New Product</DialogTitle>
+      <DialogTitle>Add New Product</DialogTitle>
       <DialogContent dividers>
-        {/* Similar form fields as shown earlier */}
         <TextField
           label="Item Name"
           name="item_name"
@@ -150,23 +171,66 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
             </MenuItem>
           ))}
         </TextField>
-        <TextField
-          label="Location"
-          name="location_id"
-          value={form.location_id}
-          onChange={handleChange}
-          select
-          fullWidth
-          margin="normal"
-          required
-        >
-          {locations.map((loc) => (
-            <MenuItem key={loc.id} value={loc.id.toString()}>
-              {loc.name}
-            </MenuItem>
+
+        <Box mt={2}>
+          {form.locations.map((entry, index) => (
+            <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <TextField
+                select
+                label="Location"
+                value={entry.location_id}
+                onChange={(e) => {
+                  const updated = [...form.locations];
+                  updated[index].location_id = e.target.value;
+                  setForm((f) => ({ ...f, locations: updated }));
+                }}
+                sx={{ flex: 1 }}
+              >
+                {locations.map((loc) => (
+                  <MenuItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                label="Qty"
+                type="number"
+                value={entry.quantity}
+                onChange={(e) => {
+                  const updated = [...form.locations];
+                  updated[index].quantity = Number(e.target.value);
+                  setForm((f) => ({ ...f, locations: updated }));
+                }}
+                sx={{ width: 100 }}
+              />
+
+              <IconButton
+                color="error"
+                onClick={() => {
+                  const updated = form.locations.filter((_, i) => i !== index);
+                  setForm((f) => ({ ...f, locations: updated }));
+                }}
+              >
+                <Iconify icon="solar:trash-bin-trash-bold" />
+              </IconButton>
+            </Box>
           ))}
-        </TextField>
-        {/* Add rate, quantity, active checkbox, image upload */}
+
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() =>
+              setForm((f) => ({
+                ...f,
+                locations: [...f.locations, { location_id: '', quantity: 0 }],
+              }))
+            }
+          >
+            Add Location
+          </Button>
+        </Box>
+
         <TextField
           label="Rate"
           name="rate"
@@ -177,16 +241,18 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
           margin="normal"
           required
         />
+
         <TextField
-          label="Quantity"
-          name="quantity"
-          value={form.quantity}
+          label="Description"
+          name="description"
+          value={form.description}
           onChange={handleChange}
-          type="number"
           fullWidth
           margin="normal"
-          required
+          multiline
+          minRows={3}
         />
+        
         <FormControlLabel
           control={<Checkbox checked={form.active} onChange={handleChange} name="active" />}
           label="Active"
@@ -207,12 +273,13 @@ export default function NewProductDialog({ open, onClose, onSuccess }: NewProduc
           </label>
         </Box>
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
         <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-          {loading ? 'Saving...' : 'Create'}
+          {loading ? <CircularProgress size={24} /> : 'Create'}
         </Button>
       </DialogActions>
     </Dialog>

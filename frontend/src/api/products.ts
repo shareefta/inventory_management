@@ -6,15 +6,13 @@ const BASE_URL = 'http://127.0.0.1:8000/api/products/products/';
 
 export async function getProducts(): Promise<ProductProps[]> {
   const token = localStorage.getItem('token');
+  if (!token) throw new Error('No auth token');
+
   const response = await axios.get(BASE_URL, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
-  // ✅ Transform snake_case to camelCase
-  const data = response.data;
-  return data.map((item: any) => ({
+  return response.data.map((item: any) => ({
     id: item.id,
     uniqueId: item.unique_id,
     itemName: item.item_name,
@@ -23,21 +21,34 @@ export async function getProducts(): Promise<ProductProps[]> {
     variants: item.variants,
     category: item.category,
     rate: item.rate,
-    quantity: item.quantity,
-    location: item.location,
+    locations: item.locations,
+    total_quantity: item.total_quantity,
     active: item.active,
     image: item.image,
+    description: item.description,
+    barcode_image: item.barcode_image,
   }));
 }
 
-export async function createProduct(data: FormData) {
+export async function createProduct(data: FormData): Promise<ProductProps> {
   const token = localStorage.getItem('token');
+
+  if (data.has('locations')) {
+    const locations = data.get('locations');
+    if (typeof locations !== 'string') {
+      data.set('locations', JSON.stringify(locations));
+    }
+  }
+   
   const response = await axios.post(BASE_URL, data, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'multipart/form-data',
     },
   });
+
+  window.dispatchEvent(new Event('product-update'));
+  
   return response.data;
 }
 
@@ -48,7 +59,8 @@ export async function getCategories() {
       Authorization: `Bearer ${token}`,
     },
   });
-  return response.data; // returns list of { id, name, description }
+
+  return response.data;
 }
 
 export async function getLocations() {
@@ -58,7 +70,7 @@ export async function getLocations() {
       Authorization: `Bearer ${token}`,
     },
   });
-  return response.data; // returns list of { id, name, description }
+  return response.data;
 }
 
 function toSnakeCase(obj: any) {
@@ -70,21 +82,41 @@ function toSnakeCase(obj: any) {
     variants: obj.variants,
     category: obj.category,
     rate: obj.rate,
-    quantity: obj.quantity,
-    location: obj.location,
+    locations: obj.locations,
     active: obj.active,
     image: obj.image,
+    description: obj.description,
   };
 }
 
-export async function updateProduct(id: string, data: any) {
+export async function updateProduct(id: string, data: any, isFormData = false) {
   const token = localStorage.getItem('token');
-  return axios.put(`${BASE_URL}${id}/`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const headers: any = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  window.dispatchEvent(new Event('product-update'));
+
+  return axios.put(`${BASE_URL}${id}/`, data, { headers });
 }
 
-export const deleteProduct = (id: string) =>
-  axios.delete(`${BASE_URL}${id}/`);
+export const deleteProduct = async (id: string) => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await axios.delete(`${BASE_URL}${id}/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    console.log('Delete response:', response);
+    window.dispatchEvent(new Event('product-update'));
+    return response;
+  } catch (error) {
+    console.error('Delete API error:', error);
+    throw error;
+  }
+};

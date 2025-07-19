@@ -38,7 +38,16 @@ type ApplyFilterProps<T> = {
   comparator: (a: T, b: T) => number;
 };
 
-export function applyFilter<T extends { itemName?: string; name?: string }>({
+function matchesQuery(value: any, query: string): boolean {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return value.toString().toLowerCase().includes(query.toLowerCase());
+  } else if (typeof value === 'object' && value !== null) {
+    return Object.values(value).some((v) => matchesQuery(v, query));
+  }
+  return false;
+}
+
+export function applyFilter<T>({
   inputData,
   comparator,
   filterName,
@@ -54,9 +63,7 @@ export function applyFilter<T extends { itemName?: string; name?: string }>({
   let filtered = stabilizedThis.map((el) => el[0]);
 
   if (filterName) {
-    filtered = filtered.filter((item) =>
-      (item.itemName ?? item.name ?? '').toLowerCase().includes(filterName.toLowerCase())
-    );
+    filtered = filtered.filter((item) => matchesQuery(item, filterName));
   }
 
   return filtered;

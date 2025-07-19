@@ -1,6 +1,7 @@
 import type { ProductProps } from 'src/sections/product/product-table-row';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useSnackbar } from 'notistack';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -13,8 +14,8 @@ import TableContainer from '@mui/material/TableContainer';
 import TablePagination from '@mui/material/TablePagination';
 import CircularProgress from '@mui/material/CircularProgress';
 
-import { getProducts, deleteProduct, getCategories, getLocations } from 'src/api/products';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { getProducts, deleteProduct, getCategories, getLocations } from 'src/api/products';
 
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
@@ -27,8 +28,6 @@ import { ProductTableHead } from 'src/sections/product/product-table-head';
 import { ProductTableToolbar } from 'src/sections/product/product-table-toolbar';
 import { applyFilter, emptyRows, getComparator } from 'src/sections/product/utils';
 
-import { useSnackbar } from 'notistack';
-
 export function ProductView() {
   const table = useTable();
   const { enqueueSnackbar } = useSnackbar();
@@ -39,8 +38,9 @@ export function ProductView() {
   const [openNewProduct, setOpenNewProduct] = useState(false);
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
-
-
+  const [printProducts, setPrintProducts] = useState<ProductProps[]>([]);
+  const printRef = useRef<HTMLDivElement>(null);
+  const productsToPrint = printProducts.length > 0 ? printProducts : [];
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
@@ -71,12 +71,19 @@ export function ProductView() {
         console.error('❌ Failed to fetch locations', err);
         enqueueSnackbar('Failed to fetch locations', { variant: 'error' });
       });
-  }, [fetchProducts]);
+  }, [fetchProducts, enqueueSnackbar]);
 
   if (loading) return <CircularProgress />;
 
+  // Compute total_quantity for each product
+  const productsWithTotalQuantity = products.map((product) => ({
+    ...product,
+    total_quantity: (product.locations ?? []).reduce((acc, loc) => acc + loc.quantity, 0),
+  }));
+
+  // Apply filtering and sorting
   const dataFiltered: ProductProps[] = applyFilter<ProductProps>({
-    inputData: Array.isArray(products) ? products : [],
+    inputData: productsWithTotalQuantity,
     comparator: getComparator<ProductProps>(table.order, table.orderBy as keyof ProductProps),
     filterName,
   });
@@ -92,13 +99,11 @@ export function ProductView() {
   const handleDeleteProduct = async (id: string) => {
     const confirm = window.confirm('Are you sure you want to delete this product?');
     if (!confirm) return;
-
     try {
       await deleteProduct(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
+      table.onSelectRow(id); // toggle off selection if selected
       enqueueSnackbar('Product deleted successfully!', { variant: 'success' });
-      // Also clear selection if selected
-      table.onSelectRow(id);
     } catch (error) {
       console.error('❌ Failed to delete product', error);
       enqueueSnackbar('Failed to delete product.', { variant: 'error' });
@@ -113,14 +118,46 @@ export function ProductView() {
     enqueueSnackbar('Product updated successfully!', { variant: 'success' });
   };
 
+  // Updated headLabel with disableSorting flags for non-sortable columns
+  const headLabel = [
+    { id: 'serial', label: '#', disableSorting: true },
+    { id: 'image', label: 'Image', disableSorting: true },
+    { id: 'barcode_image', label: 'Barcode', disableSorting: true },
+    { id: 'uniqueId', label: 'Product ID' },
+    { id: 'itemName', label: 'Item Name' },
+    { id: 'brand', label: 'Brand' },
+    { id: 'serialNumber', label: 'Model No.' },
+    { id: 'variants', label: 'Variants' },
+    { id: 'category', label: 'Category' },
+    { id: 'rate', label: 'Rate' },
+    { id: 'total_quantity', label: 'Stock' },
+    { id: 'active', label: 'Active', align: 'center' },
+    { id: '', disableSorting: true },
+  ];
+
+  const handlePrintSingle = (product: ProductProps) => {
+    setPrintProducts([product]);
+  };
+
+  // When user clicks bulk print
+  const handlePrintBulk = () => {
+    // Filter products where selected contains product id
+    const selectedProducts = products.filter((p) => table.selected.includes(p.id));
+    if (selectedProducts.length === 0) {
+      enqueueSnackbar('No products selected for printing', { variant: 'warning' });
+      return;
+    }
+    setPrintProducts(selectedProducts);
+  };
+
   return (
     <DashboardContent maxWidth="xl">
       <Grid container spacing={3}>
-        <Grid size={{ md: 12 }}>
+        <Grid size={{ sm: 12 }}>
           <Box sx={{ mb: 5, display: 'flex', alignItems: 'center' }}>
             <Typography variant="h4" sx={{ flexGrow: 1 }}>
               Products
-            </Typography>
+            </Typography>            
             <Button
               variant="contained"
               color="primary"
@@ -130,11 +167,13 @@ export function ProductView() {
               New Product
             </Button>
           </Box>
+
           <NewProductDialog
             open={openNewProduct}
             onClose={() => setOpenNewProduct(false)}
             onSuccess={handleNewProductSuccess}
           />
+
           <Card>
             <ProductTableToolbar
               numSelected={table.selected.length}
@@ -159,21 +198,7 @@ export function ProductView() {
                         products.map((item: ProductProps) => item.id)
                       )
                     }
-                    headLabel={[
-                      { id: 'serial', label: '#' },
-                      { id: 'image', label: 'Image' },
-                      { id: 'uniqueId', label: 'Unique ID' },
-                      { id: 'itemName', label: 'Item Name' },
-                      { id: 'brand', label: 'Brand' },
-                      { id: 'serialNumber', label: 'Serial No.' },
-                      { id: 'variants', label: 'Variants' },
-                      { id: 'category', label: 'Category' },
-                      { id: 'rate', label: 'Rate' },
-                      { id: 'quantity', label: 'Qty' },
-                      { id: 'location', label: 'Location' },
-                      { id: 'active', label: 'Active', align: 'center' },
-                      { id: '' },
-                    ]}
+                    headLabel={headLabel}
                   />
                   <TableBody>
                     {dataFiltered
@@ -231,8 +256,26 @@ function useTable() {
   const [selected, setSelected] = useState<string[]>([]);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
+  // List of valid sortable keys (should match your ProductProps keys)
+  const validSortKeys = new Set([
+    'uniqueId',
+    'itemName',
+    'brand',
+    'serialNumber',
+    'variants',
+    'category',
+    'rate',
+    'total_quantity',
+    'active',
+  ]);
+
   const onSort = useCallback(
     (id: string) => {
+      // Guard against invalid sort keys (like serial, image, empty string)
+      if (!validSortKeys.has(id)) {
+        return;
+      }
+
       const isAsc = orderBy === id && order === 'asc';
       setOrder(isAsc ? 'desc' : 'asc');
       setOrderBy(id);
