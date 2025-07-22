@@ -1,17 +1,8 @@
+# accounts/urls.py
 from django.urls import path
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from .views import create_user, get_user_profile
 
 urlpatterns = [
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('me/', get_user_profile),
+    path('create/', create_user),
 ]
-
-from .views import get_user_role
-
-urlpatterns += [
-    path('me/', get_user_role),
-]
-

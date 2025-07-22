@@ -99,9 +99,14 @@ export async function updateProduct(id: string, data: any, isFormData = false) {
     headers['Content-Type'] = 'application/json';
   }
 
+  const response = await axios.put(`${BASE_URL}${id}/`, data, {
+    headers,
+  });
+
+  // Now dispatch event after success
   window.dispatchEvent(new Event('product-update'));
 
-  return axios.put(`${BASE_URL}${id}/`, data, { headers });
+  return response.data;
 }
 
 export const deleteProduct = async (id: string) => {

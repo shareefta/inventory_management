@@ -9,12 +9,15 @@ import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgr
 
 import { AuthLayout } from 'src/layouts/auth';
 import { DashboardLayout } from 'src/layouts/dashboard';
+import { StaffDashboardLayout } from 'src/layouts/dashboard/layout-staff';
+
 
 import ProtectedRoute from './components/ProtectedRoute';
 
 // ----------------------------------------------------------------------
 
 export const DashboardPage = lazy(() => import('src/pages/dashboard'));
+export const StaffDashboardPage = lazy( () => import ('src/pages/dashboard-staff'))
 export const BlogPage = lazy(() => import('src/pages/blog'));
 export const UserPage = lazy(() => import('src/pages/user'));
 export const SignInPage = lazy(() => import('src/pages/sign-in'));
@@ -57,6 +60,22 @@ export const routesSection: RouteObject[] = [
       { path: 'user', element: <UserPage /> },
       { path: 'products', element: <ProductsPage /> },
       { path: 'blog', element: <BlogPage /> },
+    ],
+  },
+  {
+    path: 'staff',
+    element: (
+      <ProtectedRoute>
+        <StaffDashboardLayout>
+          <Suspense fallback={renderFallback()}>
+            <Outlet />
+          </Suspense>
+        </StaffDashboardLayout>
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <StaffDashboardPage /> },
+      { path: 'products', element: <ProductsPage /> },
     ],
   },
   {

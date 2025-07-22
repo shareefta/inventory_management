@@ -8,7 +8,6 @@ import List from '@mui/material/List';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Dialog from '@mui/material/Dialog';
-import Select from '@mui/material/Select';
 import Popover from '@mui/material/Popover';
 import { DialogTitle } from '@mui/material';
 import ListItem from '@mui/material/ListItem';
@@ -16,13 +15,12 @@ import Checkbox from '@mui/material/Checkbox';
 import MenuList from '@mui/material/MenuList';
 import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
-import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
 import DialogContent from '@mui/material/DialogContent';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
-import { updateProduct, deleteProduct } from 'src/api/products';
+import { updateProduct, getProducts } from 'src/api/products';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
@@ -87,7 +85,7 @@ export function ProductTableRow({
   const [imageError, setImageError] = useState(false);
   const [openImageModal, setOpenImageModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedRow, setEditedRow] = useState(row);
+  const [updatedProduct, setUpdatedProduct] = useState(row);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { enqueueSnackbar } = useSnackbar();
   const [locationPopoverAnchor, setLocationPopoverAnchor] = useState<null | HTMLElement>(null);
@@ -97,6 +95,14 @@ export function ProductTableRow({
   const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printProduct, setPrintProduct] = useState<ProductProps | null>(null);
+  const [products, setProducts] = useState<ProductProps[]>([]);
+
+  const updateProductInTable = (productToUpdate: ProductProps) => {
+    setProducts((prevProducts) =>
+      prevProducts.map((p) => (p.id === productToUpdate.id ? productToUpdate : p))
+    );
+  };
+
 
   const handleItemClick = (desc: string) => {
     setDescriptionText(desc);
@@ -105,8 +111,8 @@ export function ProductTableRow({
 
   
   useEffect(() => {
-    if (editedRow.image instanceof File) {
-      const objectUrl = URL.createObjectURL(editedRow.image);
+    if (updatedProduct.image instanceof File) {
+      const objectUrl = URL.createObjectURL(updatedProduct.image);
       setPreviewUrl(objectUrl);
 
       return () => {
@@ -117,7 +123,7 @@ export function ProductTableRow({
       setPreviewUrl(null);
       return undefined;
     }
-  }, [editedRow.image]);
+  }, [updatedProduct.image]);
 
   const handleOpenPopover = (event: React.MouseEvent<HTMLButtonElement>) => {
     setOpenPopover(event.currentTarget);
@@ -136,7 +142,7 @@ export function ProductTableRow({
   };
 
   const handleFieldChange = (field: keyof ProductProps, value: any) => {
-    setEditedRow((prev) => ({ ...prev, [field]: value }));
+    setUpdatedProduct((prev) => ({ ...prev, [field]: value }));
   };
 
   const toSnakeCase = (product: ProductProps) => ({
@@ -156,7 +162,7 @@ export function ProductTableRow({
   const handleSave = async () => {
     try {
       // 🔄 Convert category and location name to ID
-      const categoryId = categories.find((cat) => cat.name === editedRow.category)?.id;
+      const categoryId = categories.find((cat) => cat.name === updatedProduct.category)?.id;
 
       if (!categoryId) {
         enqueueSnackbar('Invalid category or location', { variant: 'error' });
@@ -165,7 +171,7 @@ export function ProductTableRow({
 
       const productLocationData = [];
 
-      for (const entry of editedRow.locations) {
+      for (const entry of updatedProduct.locations) {
         const locationId = locations.find((loc) => loc.name === entry.location.name)?.id;
         if (!locationId) {
           enqueueSnackbar(`Invalid location: ${entry.location.name}`, { variant: 'error' });
@@ -177,29 +183,29 @@ export function ProductTableRow({
 
       const formData = new FormData();
 
-      formData.append('unique_id', editedRow.uniqueId);
-      formData.append('item_name', editedRow.itemName);
-      formData.append('brand', editedRow.brand);
-      formData.append('serial_number', editedRow.serialNumber);
-      formData.append('variants', editedRow.variants);
+      formData.append('unique_id', updatedProduct.uniqueId);
+      formData.append('item_name', updatedProduct.itemName);
+      formData.append('brand', updatedProduct.brand);
+      formData.append('serial_number', updatedProduct.serialNumber);
+      formData.append('variants', updatedProduct.variants);
       formData.append('category_id', String(categoryId));
-      formData.append('rate', String(editedRow.rate));
+      formData.append('rate', String(updatedProduct.rate));
       formData.append('locations', JSON.stringify(productLocationData));
-      formData.append('active', String(editedRow.active));
-      formData.append('description', editedRow.description || '');
+      formData.append('active', String(updatedProduct.active));
+      formData.append('description', updatedProduct.description || '');
       
       // Only append image if it's a new File (not a URL string)
-      if (editedRow.image instanceof File) {
-        formData.append('image', editedRow.image);
+      if (updatedProduct.image instanceof File) {
+        formData.append('image', updatedProduct.image);
       }
 
       console.log('✅ Payload to update:', formData);
 
-      await updateProduct(editedRow.id, formData, true);
+      await updateProduct(updatedProduct.id.toString(), formData, true);
 
       enqueueSnackbar('Product updated successfully!', { variant: 'success' });
       setIsEditing(false);
-      onEdit?.({ ...editedRow, category: editedRow.category });
+      onEdit?.({ ...updatedProduct, category: updatedProduct.category });
     } catch (error: any) {
       console.error('❌ Failed to update product:', error);
       if (error.response) {
@@ -220,7 +226,7 @@ export function ProductTableRow({
   };
 
   const handleCancel = () => {
-    setEditedRow(row);
+    setUpdatedProduct(row);
     setIsEditing(false);
   };
 
@@ -238,7 +244,7 @@ export function ProductTableRow({
               src={
                 imageError
                   ? '/assets/images/fallback-image.png'
-                  : previewUrl ?? (typeof editedRow.image === 'string' ? editedRow.image : '')
+                  : previewUrl ?? (typeof updatedProduct.image === 'string' ? updatedProduct.image : '')
               }
               alt={row.itemName}
               variant="rounded"
@@ -418,7 +424,7 @@ export function ProductTableRow({
             src={
               imageError
                 ? '/assets/images/fallback-image.png'
-                : previewUrl ?? (typeof editedRow.image === 'string' ? editedRow.image : '')
+                : previewUrl ?? (typeof updatedProduct.image === 'string' ? updatedProduct.image : '')
             }
             alt={row.itemName}
             sx={{ width: '100%', height: 'auto', objectFit: 'contain' }}
@@ -442,10 +448,10 @@ export function ProductTableRow({
           setEditDialogOpen(false);
           setProductToEdit(null);
         }}
-        onSave={(updatedProduct) => {
+        onSuccess={(productToUpdate) => {
           setEditDialogOpen(false);
           setProductToEdit(null);
-          onEdit?.(updatedProduct);
+          updateProductInTable(productToUpdate);
         }}
       />
       <Dialog open={printDialogOpen} onClose={handlePrintDialogClose} maxWidth="xs" fullWidth>
@@ -553,7 +559,7 @@ export function ProductTableRow({
                               <div class="variants">${printProduct.variants || ''}</div>
                               <img class="barcode" src="${typeof printProduct.barcode_image === 'string' ? printProduct.barcode_image : ''}" alt="Barcode" />
                               <div class="brand">${printProduct.brand}</div>
-                              <div class="serial">SN: ${printProduct.serialNumber}</div>
+                              <div class="serial">Model: ${printProduct.serialNumber}</div>
                             </div>
                           </body>
                         </html>

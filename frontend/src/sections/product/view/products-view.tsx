@@ -71,7 +71,7 @@ export function ProductView() {
         console.error('❌ Failed to fetch locations', err);
         enqueueSnackbar('Failed to fetch locations', { variant: 'error' });
       });
-  }, [fetchProducts, enqueueSnackbar]);
+  }, [enqueueSnackbar]);
 
   if (loading) return <CircularProgress />;
 
@@ -95,7 +95,6 @@ export function ProductView() {
     fetchProducts();
   };
 
-  // Handle product delete
   const handleDeleteProduct = async (id: string) => {
     const confirm = window.confirm('Are you sure you want to delete this product?');
     if (!confirm) return;
@@ -239,7 +238,7 @@ export function ProductView() {
               count={products.length}
               rowsPerPage={table.rowsPerPage}
               onPageChange={table.onChangePage}
-              rowsPerPageOptions={[5, 10, 25]}
+              rowsPerPageOptions={[5, 10, 50]}
               onRowsPerPageChange={table.onChangeRowsPerPage}
             />
           </Card>

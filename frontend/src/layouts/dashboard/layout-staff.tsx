@@ -11,14 +11,13 @@ import { useTheme } from '@mui/material/styles';
 import { getProducts } from 'src/api/products';
 import { _langs, _notifications } from 'src/_mock';
 
-import { useAuthStore } from 'src/store/use-auth-store';
 import { Label } from 'src/components/label';
 
-import { NavMobile, NavDesktop } from './nav';
+import { NavMobile, NavDesktop } from 'src/layouts/dashboard/nav';
 import { layoutClasses } from '../core/classes';
 import { _account } from '../nav-config-account';
-import { dashboardLayoutVars } from './css-vars';
-import { navData } from '../nav-config-dashboard';
+import { dashboardLayoutVars } from 'src/layouts/dashboard/css-vars';
+import { StaffNavData } from '../nav-config-staff-dashboard';
 import { MainSection } from '../core/main-section';
 import { Searchbar } from '../components/searchbar';
 import { _workspaces } from '../nav-config-workspace';
@@ -37,7 +36,7 @@ import type { LayoutSectionProps } from '../core/layout-section';
 
 type LayoutBaseProps = Pick<LayoutSectionProps, 'sx' | 'children' | 'cssVars'>;
 
-export type DashboardLayoutProps = LayoutBaseProps & {
+export type StaffDashboardLayoutProps = LayoutBaseProps & {
   layoutQuery?: Breakpoint;
   slotProps?: {
     header?: HeaderSectionProps;
@@ -45,27 +44,25 @@ export type DashboardLayoutProps = LayoutBaseProps & {
   };
 };
 
-export function DashboardLayout({
+export function StaffDashboardLayout({
   sx,
   cssVars,
   children,
   slotProps,
   layoutQuery = 'lg',
-}: DashboardLayoutProps) {
+}: StaffDashboardLayoutProps) {
   const theme = useTheme();
 
-  const { user } = useAuthStore();
-  
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
   const [activeProductCount, setActiveProductCount] = useState<number>(0);
-  const [navItems, setNavItems] = useState(navData);
+  const [navItems, setNavItems] = useState(StaffNavData);
 
   const fetchProductCount = async () => {
     try {
       const products = await getProducts();
       const activeCount = products.filter((p) => p.active).length;
 
-      const updatedNav = navData.map((item) =>
+      const updatedNav = StaffNavData.map((item) =>
         item.title === 'Product'
           ? {
               ...item,

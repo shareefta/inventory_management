@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import CreateUserDialog from 'src/sections/user/create-user-dialog';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -30,6 +31,7 @@ export function UserView() {
   const table = useTable();
 
   const [filterName, setFilterName] = useState('');
+  const [openDialog, setOpenDialog] = useState(false);
 
   const dataFiltered: UserProps[] = applyFilter({
     inputData: _users,
@@ -55,6 +57,7 @@ export function UserView() {
           variant="contained"
           color="inherit"
           startIcon={<Iconify icon="mingcute:add-line" />}
+          onClick={() => setOpenDialog(true)}
         >
           New user
         </Button>
@@ -130,6 +133,7 @@ export function UserView() {
           onRowsPerPageChange={table.onChangeRowsPerPage}
         />
       </Card>
+      <CreateUserDialog open={openDialog} onClose={() => setOpenDialog(false)} />
     </DashboardContent>
   );
 }

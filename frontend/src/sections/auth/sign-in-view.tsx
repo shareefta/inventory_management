@@ -11,6 +11,8 @@ import InputAdornment from '@mui/material/InputAdornment';
 
 import { useRouter } from 'src/routes/hooks';
 
+import { useAuthStore } from 'src/store/use-auth-store';
+
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
@@ -18,13 +20,15 @@ import { Iconify } from 'src/components/iconify';
 export function SignInView() {
   const router = useRouter();
 
+  const setUser = useAuthStore((state) => state.setUser);
+
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSignIn = useCallback(async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/accounts/login/', {
+      const response = await fetch('http://127.0.0.1:8000/api/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userName, password }),
@@ -46,14 +50,33 @@ export function SignInView() {
       });
 
       const user = await meRes.json();
+      setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
+      console.log(user)
 
-      router.push('/');
+      switch (user.role.toLowerCase()) {
+        case 'admin':
+          router.push('/');
+          break;
+        case 'management':
+          router.push('/dashboard/management');
+          break;
+        case 'staff':
+          router.push('/staff');
+          break;
+        case 'delivery':
+          router.push('/dashboard/delivery');
+          break;
+        default:
+          router.push('/sign-in');
+      }
+
+      // router.push('/');
     } catch (error) {
       console.error('Login error:', error);
       alert('An error occurred during login.');
     }
-  }, [userName, password, router]);
+  }, [userName, password, router, setUser]);
 
   const renderForm = (
     <Box
