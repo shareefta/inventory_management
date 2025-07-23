@@ -28,7 +28,7 @@ export function SignInView() {
 
   const handleSignIn = useCallback(async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/token/', {
+      const response = await fetch('http://159.89.168.252/api/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userName, password }),
@@ -45,7 +45,7 @@ export function SignInView() {
       localStorage.setItem('refresh', data.refresh);
 
       // Optional: Fetch user info
-      const meRes = await fetch('http://127.0.0.1:8000/api/accounts/me/', {
+      const meRes = await fetch('http://159.89.168.252/api/accounts/me/', {
         headers: { Authorization: `Bearer ${data.access}` },
       });
 

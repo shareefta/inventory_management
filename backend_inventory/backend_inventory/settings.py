@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-9&*5#g@_$)o_91va3g%w@5$*fv=y64#(mi18j(y_xddhbhyzu@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['159.89.168.252']
 
 
 # Application definition
@@ -123,7 +123,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles/')
 
 # Media files (uploads)
 MEDIA_URL = '/media/'
@@ -147,7 +148,11 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3039",  # React dev server
+    "http://159.89.168.252/",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://159.89.168.252",
 ]
 
 SIMPLE_JWT = {
