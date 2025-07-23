@@ -5,7 +5,6 @@ import { useEffect } from 'react';
 import { usePathname } from 'src/routes/hooks';
 
 import { useAuthStore } from 'src/store/use-auth-store';
-
 import { ThemeProvider } from 'src/theme/theme-provider';
 
 // ----------------------------------------------------------------------

@@ -10,20 +10,20 @@ import { useTheme } from '@mui/material/styles';
 
 import { getProducts } from 'src/api/products';
 import { _langs, _notifications } from 'src/_mock';
+import { NavMobile, NavDesktop } from 'src/layouts/dashboard/nav';
+import { dashboardLayoutVars } from 'src/layouts/dashboard/css-vars';
 
 import { Label } from 'src/components/label';
 
-import { NavMobile, NavDesktop } from 'src/layouts/dashboard/nav';
 import { layoutClasses } from '../core/classes';
 import { _account } from '../nav-config-account';
-import { dashboardLayoutVars } from 'src/layouts/dashboard/css-vars';
-import { StaffNavData } from '../nav-config-staff-dashboard';
 import { MainSection } from '../core/main-section';
 import { Searchbar } from '../components/searchbar';
 import { _workspaces } from '../nav-config-workspace';
 import { MenuButton } from '../components/menu-button';
 import { HeaderSection } from '../core/header-section';
 import { LayoutSection } from '../core/layout-section';
+import { StaffNavData } from '../nav-config-staff-dashboard';
 import { AccountPopover } from '../components/account-popover';
 import { LanguagePopover } from '../components/language-popover';
 import { NotificationsPopover } from '../components/notifications-popover';

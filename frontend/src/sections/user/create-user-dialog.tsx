@@ -1,9 +1,9 @@
 // src/sections/user/CreateUserDialog.tsx
 import Dialog from '@mui/material/Dialog';
+import IconButton from '@mui/material/IconButton';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
-import IconButton from '@mui/material/IconButton';
-import { Iconify } from 'src/components/iconify';
+
 import CreateUserForm from 'src/sections/user/create-user-form';
 
 type Props = {

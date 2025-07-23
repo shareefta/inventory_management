@@ -10,8 +10,8 @@ import { useTheme } from '@mui/material/styles';
 
 import { getProducts } from 'src/api/products';
 import { _langs, _notifications } from 'src/_mock';
-
 import { useAuthStore } from 'src/store/use-auth-store';
+
 import { Label } from 'src/components/label';
 
 import { NavMobile, NavDesktop } from './nav';

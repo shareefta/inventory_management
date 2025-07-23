@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import CreateUserDialog from 'src/sections/user/create-user-dialog';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -15,6 +14,8 @@ import { DashboardContent } from 'src/layouts/dashboard';
 
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
+
+import CreateUserDialog from 'src/sections/user/create-user-dialog';
 
 import { TableNoData } from '../table-no-data';
 import { UserTableRow } from '../user-table-row';

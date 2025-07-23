@@ -11,7 +11,6 @@ import { AuthLayout } from 'src/layouts/auth';
 import { DashboardLayout } from 'src/layouts/dashboard';
 import { StaffDashboardLayout } from 'src/layouts/dashboard/layout-staff';
 
-
 import ProtectedRoute from './components/ProtectedRoute';
 
 // ----------------------------------------------------------------------
