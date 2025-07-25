@@ -28,7 +28,7 @@ export function SignInView() {
 
   const handleSignIn = useCallback(async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/token/', {
+      const response = await fetch('http://143.110.191.99/api/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userName, password }),
@@ -45,7 +45,7 @@ export function SignInView() {
       localStorage.setItem('refresh', data.refresh);
 
       // Optional: Fetch user info
-      const meRes = await fetch('http://127.0.0.1:8000/api/accounts/me/', {
+      const meRes = await fetch('http://143.110.191.99/api/accounts/me/', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -65,24 +65,24 @@ export function SignInView() {
       localStorage.setItem('user', JSON.stringify(user));
       console.log(user);
 
-      switch ((user.role || '').toLowerCase()) {
-        case 'admin':
-          router.push('/');
-          break;
-        case 'management':
-          router.push('/dashboard/management');
-          break;
-        case 'staff':
-          router.push('/staff');
-          break;
-        case 'delivery':
-          router.push('/dashboard/delivery');
-          break;
-        default:
-          router.push('/sign-in');
-      }
-
-      // router.push('/');
+      router.push('/');
+      // switch ((user.role || '').toLowerCase()) {
+      //   case 'admin':
+      //     router.push('/');
+      //     break;
+      //   case 'management':
+      //     router.push('/dashboard/management');
+      //     break;
+      //   case 'staff':
+      //     router.push('/staff');
+      //     break;
+      //   case 'delivery':
+      //     router.push('/dashboard/delivery');
+      //     break;
+      //   default:
+      //     router.push('/sign-in');
+      // }
+      
     } catch (error) {
       console.error('Login error:', error);
       alert('An error occurred during login.');
