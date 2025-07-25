@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-9&*5#g@_$)o_91va3g%w@5$*fv=y64#(mi18j(y_xddhbhyzu@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['159.89.168.252']
+ALLOWED_HOSTS = ['159.89.168.252', '127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -48,14 +48,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware', 
 ]
 
 ROOT_URLCONF = 'backend_inventory.urls'
@@ -147,13 +147,20 @@ REST_FRAMEWORK = {
     ),
 }
 
+CORS_ALLOW_CREDENTIALS = True
+
 CORS_ALLOWED_ORIGINS = [
-    "http://159.89.168.252/",
+    "http://159.89.168.252",
+    "http://localhost:3039"
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://159.89.168.252",
+    "http://localhost:3039"
 ]
+
+CORS_ALLOW_HEADERS = ['*']
+CORS_ALLOW_METHODS = ['*']
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),

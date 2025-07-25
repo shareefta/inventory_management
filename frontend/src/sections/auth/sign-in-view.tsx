@@ -28,7 +28,7 @@ export function SignInView() {
 
   const handleSignIn = useCallback(async () => {
     try {
-      const response = await fetch('http://159.89.168.252/api/token/', {
+      const response = await fetch('http://127.0.0.1:8000/api/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userName, password }),
@@ -45,16 +45,27 @@ export function SignInView() {
       localStorage.setItem('refresh', data.refresh);
 
       // Optional: Fetch user info
-      const meRes = await fetch('http://159.89.168.252/api/accounts/me/', {
-        headers: { Authorization: `Bearer ${data.access}` },
+      const meRes = await fetch('http://127.0.0.1:8000/api/accounts/me/', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${data.access}`,
+        },
       });
 
       const user = await meRes.json();
+
+      if (!meRes.ok) {
+        console.error('Failed to fetch user:', user);
+        alert(user.detail || 'Failed to fetch user info.');
+        return;
+      }
+
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
-      console.log(user)
+      console.log(user);
 
-      switch (user.role.toLowerCase()) {
+      switch ((user.role || '').toLowerCase()) {
         case 'admin':
           router.push('/');
           break;

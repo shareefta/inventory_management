@@ -26,7 +26,7 @@ export default function CreateUserForm() {
 
   const handleSubmit = async () => {
     try {
-      await axios.post('http://127.0.0.1:8000//api/accounts/create/', formData, {
+      await axios.post('http://127.0.0.1:8000/api/accounts/create/', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
