@@ -17,10 +17,11 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 export const DashboardPage = lazy(() => import('src/pages/dashboard'));
 export const StaffDashboardPage = lazy( () => import ('src/pages/dashboard-staff'))
-export const BlogPage = lazy(() => import('src/pages/blog'));
 export const UserPage = lazy(() => import('src/pages/user'));
 export const SignInPage = lazy(() => import('src/pages/sign-in'));
 export const ProductsPage = lazy(() => import('src/pages/products'));
+export const CategoryPage = lazy(() => import('src/pages/category'));
+export const LocationPage = lazy(() => import('src/pages/location'));
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 const renderFallback = () => (
@@ -58,7 +59,8 @@ export const routesSection: RouteObject[] = [
       { index: true, element: <DashboardPage /> },
       { path: 'user', element: <UserPage /> },
       { path: 'products', element: <ProductsPage /> },
-      { path: 'blog', element: <BlogPage /> },
+      { path: 'category', element: <CategoryPage /> },
+      { path: 'location', element: <LocationPage /> },
     ],
   },
   {

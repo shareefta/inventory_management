@@ -28,7 +28,7 @@ export function SignInView() {
 
   const handleSignIn = useCallback(async () => {
     try {
-      const response = await fetch('http://143.110.191.99/api/token/', {
+      const response = await fetch('https://razaworld.uk/api/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userName, password }),
@@ -45,7 +45,7 @@ export function SignInView() {
       localStorage.setItem('refresh', data.refresh);
 
       // Optional: Fetch user info
-      const meRes = await fetch('http://143.110.191.99/api/accounts/me/', {
+      const meRes = await fetch('https://razaworld.uk/api/accounts/me/', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

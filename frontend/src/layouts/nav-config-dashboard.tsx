@@ -24,23 +24,38 @@ export const navData: NavItem[] = [
     icon: icon('ic-cart'),
   },
   {
-    title: 'Purchases',
-    path: '/purchases',
-    icon: icon('ic-purchase'),
+    title: 'Category',
+    path: '/category',
+    icon: icon('ic-category'),
   },
   {
-    title: 'Sales',
-    path: '/sales',
-    icon: icon('ic-sales'),
+    title: 'Location',
+    path: '/location',
+    icon: icon('ic-location'),
   },
+  // {
+  //   title: 'Purchases',
+  //   path: '/purchases',
+  //   icon: icon('ic-purchase'),
+  // },
+  // {
+  //   title: 'Sales',
+  //   path: '/sales',
+  //   icon: icon('ic-sales'),
+  // },
+  // {
+  //   title: 'Orders',
+  //   path: '/orders',
+  //   icon: icon('ic-order'),
+  // },
+  // {
+  //   title: 'Delivery',
+  //   path: '/delivery',
+  //   icon: icon('ic-delivery'),
+  // },  
   {
-    title: 'Orders',
-    path: '/orders',
-    icon: icon('ic-order'),
-  },
-  {
-    title: 'Delivery Partners',
+    title: 'Users',
     path: '/user',
-    icon: icon('ic-delivery'),
+    icon: icon('ic-user'),
   },
 ];

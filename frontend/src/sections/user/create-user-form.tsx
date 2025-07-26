@@ -26,7 +26,7 @@ export default function CreateUserForm() {
 
   const handleSubmit = async () => {
     try {
-      await axios.post('http://143.110.191.99/api/accounts/create/', formData, {
+      await axios.post('https://razaworld.uk/api/accounts/create/', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

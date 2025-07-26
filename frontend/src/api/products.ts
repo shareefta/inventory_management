@@ -2,7 +2,7 @@ import type { ProductProps } from 'src/sections/product/product-table-row';
 
 import axios from 'axios';
 
-const BASE_URL = 'http://143.110.191.99/api/products/products/';
+const BASE_URL = 'https://razaworld.uk/api/products/products/';
 
 export async function getProducts(): Promise<ProductProps[]> {
   const token = localStorage.getItem('token');
@@ -54,7 +54,7 @@ export async function createProduct(data: FormData): Promise<ProductProps> {
 
 export async function getCategories() {
   const token = localStorage.getItem('token');
-  const response = await axios.get('http://143.110.191.99/api/products/categories/', {
+  const response = await axios.get('https://razaworld.uk/api/products/categories/', {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -65,7 +65,7 @@ export async function getCategories() {
 
 export async function getLocations() {
   const token = localStorage.getItem('token');
-  const response = await axios.get('http://143.110.191.99/api/products/locations/', {
+  const response = await axios.get('https://razaworld.uk/api/products/locations/', {
     headers: {
       Authorization: `Bearer ${token}`,
     },
