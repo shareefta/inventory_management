@@ -38,12 +38,15 @@ const MuiButton: Components<Theme>['MuiButton'] = {
 
 const MuiCard: Components<Theme>['MuiCard'] = {
   styleOverrides: {
-    root: ({ theme }) => ({
-      zIndex: 0,
-      position: 'relative',
-      boxShadow: theme.vars.customShadows.card,
-      borderRadius: theme.shape.borderRadius * 2,
-    }),
+    root: ({ theme }) => {
+      const baseRadius = Number(theme.shape.borderRadius) || 8;
+      return {
+        zIndex: 0,
+        position: 'relative',
+        boxShadow: theme.vars.customShadows.card,
+        borderRadius: baseRadius * 2,
+      };
+    },
   },
 };
 

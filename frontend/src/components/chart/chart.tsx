@@ -40,9 +40,13 @@ export function Chart({ type, series, options, slotProps, className, sx, ...othe
 
 // ----------------------------------------------------------------------
 
-const ChartRoot = styled('div')(({ theme }) => ({
-  width: '100%',
-  flexShrink: 0,
-  position: 'relative',
-  borderRadius: theme.shape.borderRadius * 1.5,
-}));
+const ChartRoot = styled('div')(({ theme }) => {
+  const baseRadius = Number(theme.shape.borderRadius) || 8;
+
+  return {
+    width: '100%',
+    flexShrink: 0,
+    position: 'relative',
+    borderRadius: baseRadius * 1.5,
+  };
+});

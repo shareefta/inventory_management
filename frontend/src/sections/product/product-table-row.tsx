@@ -8,6 +8,7 @@ import List from '@mui/material/List';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Dialog from '@mui/material/Dialog';
+import Tooltip from '@mui/material/Tooltip';
 import Popover from '@mui/material/Popover';
 import { DialogTitle } from '@mui/material';
 import ListItem from '@mui/material/ListItem';
@@ -17,10 +18,11 @@ import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
+import WarningIcon from '@mui/icons-material/Warning';
 import DialogContent from '@mui/material/DialogContent';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
-import { updateProduct, getProducts } from 'src/api/products';
+import { updateProduct } from 'src/api/products';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
@@ -52,9 +54,10 @@ export type ProductProps = {
   variants: string;
   category: string;
   rate: number;
+  sellingPrice: number;
+  minimumProfit: number;
   active: boolean;
   image?: string | File;
-  barcode_image?: string | File;
   locations: ProductLocationEntry[];
   total_quantity: number;
   description?: string;
@@ -69,6 +72,7 @@ type ProductTableRowProps = {
   onDelete?: (id: string) => void;
   categories: { id: number; name: string }[];
   locations: { id: number; name: string }[];
+  onShowBarcode: (product: ProductProps) => void
 };
 
 export function ProductTableRow({
@@ -80,6 +84,7 @@ export function ProductTableRow({
   onDelete,
   categories,
   locations,
+  onShowBarcode,
 }: ProductTableRowProps) {
   const [openPopover, setOpenPopover] = useState<HTMLButtonElement | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -93,8 +98,6 @@ export function ProductTableRow({
   const [descriptionText, setDescriptionText] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
-  const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printProduct, setPrintProduct] = useState<ProductProps | null>(null);
   const [products, setProducts] = useState<ProductProps[]>([]);
 
   const updateProductInTable = (productToUpdate: ProductProps) => {
@@ -103,12 +106,10 @@ export function ProductTableRow({
     );
   };
 
-
   const handleItemClick = (desc: string) => {
     setDescriptionText(desc);
     setDescriptionOpen(true);
   };
-
   
   useEffect(() => {
     if (updatedProduct.image instanceof File) {
@@ -145,21 +146,21 @@ export function ProductTableRow({
     setUpdatedProduct((prev) => ({ ...prev, [field]: value }));
   };
 
-  const toSnakeCase = (product: ProductProps) => ({
-    unique_id: product.uniqueId,
-    item_name: product.itemName,
-    brand: product.brand,
-    serial_number: product.serialNumber,
-    variants: product.variants,
-    category: product.category,
-    rate: product.rate,
-    active: product.active,
-    image: product.image,
-    description: product.description,
-    barcode_image: product.barcode_image,
-  });
-
   const handleSave = async () => {
+    const rate = Number(updatedProduct.rate);
+    const sellingPrice = Number(updatedProduct.sellingPrice);
+    const minimumProfit = Number(updatedProduct.minimumProfit ?? 10);
+
+    const minRequired = rate + minimumProfit;
+
+    if (sellingPrice < minRequired) {
+      enqueueSnackbar(
+        `❌ Selling Price must be at least Rate + Minimum Profit (₹${minRequired.toFixed(2)})`,
+        { variant: 'error' }
+      );
+      return;
+    }
+
     try {
       // 🔄 Convert category and location name to ID
       const categoryId = categories.find((cat) => cat.name === updatedProduct.category)?.id;
@@ -190,6 +191,7 @@ export function ProductTableRow({
       formData.append('variants', updatedProduct.variants);
       formData.append('category_id', String(categoryId));
       formData.append('rate', String(updatedProduct.rate));
+      formData.append('selling_price', String(updatedProduct.sellingPrice));
       formData.append('locations', JSON.stringify(productLocationData));
       formData.append('active', String(updatedProduct.active));
       formData.append('description', updatedProduct.description || '');
@@ -213,16 +215,6 @@ export function ProductTableRow({
       }
       enqueueSnackbar('Failed to update product.', { variant: 'error' });
     }
-  };
-
-  const handlePrintDialogOpen = () => {
-    setPrintProduct(row);
-    setPrintDialogOpen(true);
-  };
-
-  const handlePrintDialogClose = () => {
-    setPrintDialogOpen(false);
-    setPrintProduct(null);
   };
 
   const handleCancel = () => {
@@ -255,23 +247,9 @@ export function ProductTableRow({
         </TableCell>
 
         <TableCell>
-          {typeof row.barcode_image === 'string' ? (
-            <img
-              src={row.barcode_image}
-              alt="Barcode"
-              style={{ height: 50, cursor: 'pointer' }}
-              onClick={handlePrintDialogOpen}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = '/no-barcode.png';
-              }}
-            />
-          ) : (
-            '—'
-          )}
-        </TableCell>
-
-        <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
-          {row.uniqueId}
+          <Button variant="text" onClick={() => onShowBarcode(row)}>
+            {row.uniqueId}
+          </Button>
         </TableCell>
 
         <TableCell 
@@ -301,6 +279,15 @@ export function ProductTableRow({
         <TableCell> {row.category} </TableCell>
           
         <TableCell> {row.rate} </TableCell>
+
+        <TableCell>
+          {row.sellingPrice}
+          {(row.sellingPrice < row.rate + (row.minimumProfit ?? 10)) && (
+            <Tooltip title="Selling price is below required minimum" arrow>
+              <WarningIcon fontSize="small" color="error" style={{ marginLeft: 4 }} />
+            </Tooltip>
+          )}
+        </TableCell>
 
         <TableCell>
           <>
@@ -454,130 +441,6 @@ export function ProductTableRow({
           updateProductInTable(productToUpdate);
         }}
       />
-      <Dialog open={printDialogOpen} onClose={handlePrintDialogClose} maxWidth="xs" fullWidth>
-        <Box id="print-dialog-content" sx={{ p: 1, textAlign: 'center' }}>
-          {printProduct && (
-            <>
-              <img
-                src={typeof printProduct.barcode_image === 'string' ? printProduct.barcode_image : ''}
-                alt={`Barcode for ${printProduct.itemName}`}
-                style={{ height: 100, marginBottom: 20 }}
-              />
-              <div style={{ fontWeight: 'bold', fontSize: 18 }}>{printProduct.itemName}</div>
-              <div>{printProduct.variants}</div>
-              <div>{printProduct.brand}</div>
-              <div>Serial: {printProduct.serialNumber}</div>
-
-              <Button
-                variant="contained"
-                sx={{ mt: 3 }}
-                className="print-button"
-                onClick={() => {
-                  const printContent = document.getElementById('print-dialog-content');
-                  if (printContent) {
-                    const newWin = window.open('', '_blank');
-                    if (newWin) {
-                      newWin.document.write(`
-                        <html>
-                          <head>
-                            <title>Print Barcode</title>
-                            <style>
-                              @page {
-                                size: 4cm 2cm;
-                                margin: 0;
-                              }
-                              @media print {
-                                body {
-                                  margin: 0;
-                                  padding: 0;
-                                }
-                              }
-
-                              body {
-                                font-family: Arial, sans-serif;
-                              }
-
-                              .label {
-                                width: 4cm;
-                                height: 2cm;
-                                position: relative;
-                                box-sizing: border-box;
-                                padding: 0;
-                                margin: 0 auto;
-                                overflow: hidden;
-                                border: 1px solid black;
-                              }
-
-                              .item-name {
-                                position: absolute;
-                                top: 2px;
-                                left: 4px;
-                                font-size: 8px;
-                                font-weight: bold;
-                              }
-                              
-                              .variants {
-                                position: absolute;
-                                top: 2px;
-                                right: 4px;
-                                font-size: 7px;
-                                font-weight: bold;
-                                text-align: right;
-                              }
-
-                              .brand {
-                                position: absolute;
-                                bottom: 2px;
-                                left: 4px;
-                                font-size: 7px;
-                              }
-
-                              .serial {
-                                position: absolute;
-                                bottom: 2px;
-                                right: 4px;
-                                font-size: 7px;
-                              }
-
-                              .barcode {
-                                position: absolute;
-                                top: 50%;
-                                left: 50%;
-                                transform: translate(-50%, -50%);
-                                max-height: 1.2cm;
-                                max-width: 100%;
-                              }
-
-                              .print-button {
-                                display: none;
-                              }
-                            </style>
-                          </head>
-                          <body>
-                            <div class="label">
-                              <div class="item-name">${printProduct.itemName}</div>
-                              <div class="variants">${printProduct.variants || ''}</div>
-                              <img class="barcode" src="${typeof printProduct.barcode_image === 'string' ? printProduct.barcode_image : ''}" alt="Barcode" />
-                              <div class="brand">${printProduct.brand}</div>
-                              <div class="serial">Model: ${printProduct.serialNumber}</div>
-                            </div>
-                          </body>
-                        </html>
-                      `);
-                      newWin.document.close();
-                      newWin.focus();
-                      newWin.print();
-                      newWin.close();
-                    }
-                  }
-                }}
-              >
-                Print
-              </Button>
-            </>
-          )}
-        </Box>
-      </Dialog>
     </>
   );
 }

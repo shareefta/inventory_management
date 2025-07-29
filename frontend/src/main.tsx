@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { SnackbarProvider } from 'notistack';
 import { createRoot } from 'react-dom/client';
 import { Outlet, RouterProvider, createBrowserRouter } from 'react-router';
 
@@ -11,9 +12,11 @@ import { ErrorBoundary } from './routes/components';
 const router = createBrowserRouter([
   {
     Component: () => (
-      <App>
-        <Outlet />
-      </App>
+      <SnackbarProvider maxSnack={3}>
+        <App>
+          <Outlet />
+        </App>
+      </SnackbarProvider>
     ),
     errorElement: <ErrorBoundary />,
     children: routesSection,

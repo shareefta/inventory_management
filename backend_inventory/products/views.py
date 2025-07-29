@@ -1,7 +1,6 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
-import json
-from rest_framework import status
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Product, Category, Location
 from .serializers import ProductSerializer, CategorySerializer, LocationSerializer
@@ -39,3 +38,17 @@ class LocationViewSet(viewsets.ModelViewSet):
     queryset = Location.objects.all()
     serializer_class = LocationSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+@api_view(['GET'])
+def scan_barcode(request):
+    barcode = request.query_params.get('barcode')
+    
+    if not barcode:
+        return Response({'error': 'Barcode number is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        product = Product.objects.get(unique_id=barcode)
+        serializer = ProductSerializer(product, context={'request': request})
+        return Response({'found': True, 'product': serializer.data}, status=status.HTTP_200_OK)
+    except Product.DoesNotExist:
+        return Response({'found': False, 'product': None}, status=status.HTTP_200_OK)

@@ -8,6 +8,13 @@ from django.conf import settings
 from barcode import Code128
 from barcode.writer import ImageWriter
 from PIL import Image
+from django.core.validators import RegexValidator
+from django.core.exceptions import ValidationError
+
+barcode_validator = RegexValidator(
+    regex=r'^[A-Z0-9]{8,13}$',
+    message='Barcode must be 8–13 characters, uppercase letters and digits only.'
+)
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -33,7 +40,7 @@ def barcode_image_upload_path(instance, filename):
     return f'barcodes/{new_filename}'
 
 class Product(models.Model):
-    unique_id = models.CharField(max_length=12, unique=True, editable=False)
+    unique_id = models.CharField(max_length=64, unique=True, editable=True, validators=[barcode_validator],)
     item_name = models.CharField(max_length=200)
     brand = models.CharField(max_length=100, blank=True)
     serial_number = models.CharField(max_length=100, blank=True)
@@ -43,33 +50,34 @@ class Product(models.Model):
     locations = models.ManyToManyField(Location, through='ProductLocation')
     
     rate = models.DecimalField(max_digits=10, decimal_places=2)
+    minimum_profit = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
     active = models.BooleanField(default=True)
 
     image = models.ImageField(upload_to=product_image_upload_path, blank=True, null=True)
-    barcode_image = models.ImageField(upload_to=barcode_image_upload_path, blank=True, null=True)
     description = models.TextField(blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
 
     def total_quantity(self):
         return sum(loc.quantity for loc in self.product_locations.all())
+    
+    def clean(self):
+        super().clean()
+        
+        if self.selling_price is not None and self.rate is not None and self.minimum_profit is not None:
+            if self.selling_price < (self.rate + self.minimum_profit):
+                raise ValidationError({
+                    'selling_price': f"Selling price must be at least rate + minimum profit: {self.rate + self.minimum_profit}"
+                })
 
     def save(self, *args, **kwargs):
         if not self.unique_id:
-            self.unique_id = str(uuid.uuid4()).replace('-', '')[:12].upper()
+            self.unique_id = str(uuid.uuid4()).replace('-', '')[:13].upper()
+        
+        self.full_clean()  # This runs the clean() method and field validations
         super().save(*args, **kwargs)
-
-        if not self.barcode_image:
-            barcode = Code128(self.unique_id, writer=ImageWriter())
-            buffer = BytesIO()
-            barcode.write(buffer)
-            buffer.seek(0)
-
-            image_file = File(buffer, name=f"{self.unique_id}_barcode.png")
-            self.barcode_image.save(f"{self.unique_id}_barcode.png", image_file, save=False)
-
-            buffer.close()
-            super().save(update_fields=["barcode_image"])
 
     def __str__(self):
         return f"{self.item_name} ({self.unique_id})"

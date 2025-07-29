@@ -3,6 +3,7 @@ import type { ProductProps } from 'src/sections/product/product-table-row';
 import axios from 'axios';
 
 const BASE_URL = 'https://razaworld.uk/api/products/products/';
+const BARCODE_URL = 'https://razaworld.uk/api/products/scan/';
 
 export async function getProducts(): Promise<ProductProps[]> {
   const token = localStorage.getItem('token');
@@ -26,8 +27,39 @@ export async function getProducts(): Promise<ProductProps[]> {
     active: item.active,
     image: item.image,
     description: item.description,
-    barcode_image: item.barcode_image,
+    sellingPrice: item.selling_price,
+    minimumProfit: item.minimum_profit,
   }));
+}
+
+export async function getProductByBarcode(barcode: string): Promise<ProductProps> {
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('No auth token');
+
+  const response = await axios.get(BARCODE_URL, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { barcode },
+  });
+
+  const item = response.data;
+
+  return {
+    id: item.id,
+    uniqueId: item.unique_id,
+    itemName: item.item_name,
+    brand: item.brand,
+    serialNumber: item.serial_number,
+    variants: item.variants,
+    category: item.category,
+    rate: item.rate,
+    locations: item.locations,
+    total_quantity: item.total_quantity,
+    active: item.active,
+    image: item.image,
+    description: item.description,
+    sellingPrice: item.selling_price,
+    minimumProfit: item.minimum_profit,
+  };
 }
 
 export async function createProduct(data: FormData): Promise<ProductProps> {
@@ -71,22 +103,6 @@ export async function getLocations() {
     },
   });
   return response.data;
-}
-
-function toSnakeCase(obj: any) {
-  return {
-    unique_id: obj.uniqueId,
-    item_name: obj.itemName,
-    brand: obj.brand,
-    serial_number: obj.serialNumber,
-    variants: obj.variants,
-    category: obj.category,
-    rate: obj.rate,
-    locations: obj.locations,
-    active: obj.active,
-    image: obj.image,
-    description: obj.description,
-  };
 }
 
 export async function updateProduct(id: string, data: any, isFormData = false) {

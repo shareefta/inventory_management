@@ -1,7 +1,7 @@
 import type { ProductProps } from 'src/sections/product/product-table-row';
 
 import { useSnackbar } from 'notistack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -20,9 +20,12 @@ import { getProducts, deleteProduct, getCategories, getLocations } from 'src/api
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
 
+import BarcodeDialog from 'src/sections/product/barcode';
 import { TableNoData } from 'src/sections/product/table-no-data';
+import BarcodeScanner from 'src/sections/product/barcode-scanner';
 import NewProductDialog from 'src/sections/product/new-product-dialog';
 import { TableEmptyRows } from 'src/sections/product/table-empty-rows';
+import ProductEditDialog from 'src/sections/product/product-edit-dialog';
 import { ProductTableRow } from 'src/sections/product/product-table-row';
 import { ProductTableHead } from 'src/sections/product/product-table-head';
 import { ProductTableToolbar } from 'src/sections/product/product-table-toolbar';
@@ -38,9 +41,11 @@ export function ProductView() {
   const [openNewProduct, setOpenNewProduct] = useState(false);
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
-  const [printProducts, setPrintProducts] = useState<ProductProps[]>([]);
-  const printRef = useRef<HTMLDivElement>(null);
-  const productsToPrint = printProducts.length > 0 ? printProducts : [];
+  const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
+  const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
+  const [selectedProductForBarcode, setSelectedProductForBarcode] = useState<ProductProps | null>(null);
+  const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
+  const [editProductDialogOpen, setEditProductDialogOpen] = useState(false);
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
@@ -121,7 +126,6 @@ export function ProductView() {
   const headLabel = [
     { id: 'serial', label: '#', disableSorting: true },
     { id: 'image', label: 'Image', disableSorting: true },
-    { id: 'barcode_image', label: 'Barcode', disableSorting: true },
     { id: 'uniqueId', label: 'Product ID' },
     { id: 'itemName', label: 'Item Name' },
     { id: 'brand', label: 'Brand' },
@@ -129,25 +133,11 @@ export function ProductView() {
     { id: 'variants', label: 'Variants' },
     { id: 'category', label: 'Category' },
     { id: 'rate', label: 'Rate' },
+    { id: 'sellingPrice', label: 'Selling Price' },
     { id: 'total_quantity', label: 'Stock' },
     { id: 'active', label: 'Active', align: 'center' },
     { id: '', disableSorting: true },
   ];
-
-  const handlePrintSingle = (product: ProductProps) => {
-    setPrintProducts([product]);
-  };
-
-  // When user clicks bulk print
-  const handlePrintBulk = () => {
-    // Filter products where selected contains product id
-    const selectedProducts = products.filter((p) => table.selected.includes(p.id));
-    if (selectedProducts.length === 0) {
-      enqueueSnackbar('No products selected for printing', { variant: 'warning' });
-      return;
-    }
-    setPrintProducts(selectedProducts);
-  };
 
   return (
     <DashboardContent maxWidth="xl">
@@ -169,9 +159,44 @@ export function ProductView() {
 
           <NewProductDialog
             open={openNewProduct}
-            onClose={() => setOpenNewProduct(false)}
+            onClose={() => {
+              setOpenNewProduct(false);
+              setScannedBarcode(null); // Reset barcode on close
+            }}
             onSuccess={handleNewProductSuccess}
+            initialBarcode={scannedBarcode ?? undefined}
           />
+
+          <BarcodeScanner
+            onProductFound={(product) => {
+              enqueueSnackbar(`Product found: ${product.item_name}`, { variant: 'info' });
+              setProductToEdit(product);
+              setEditProductDialogOpen(true);
+            }}
+            onNotFound={(barcode) => {
+              enqueueSnackbar(`Product not found for barcode: ${barcode}`, { variant: 'warning' });
+              setScannedBarcode(barcode);
+              setOpenNewProduct(true);
+            }}
+          />
+
+          {productToEdit && (
+            <ProductEditDialog
+              open={editProductDialogOpen}
+              product={productToEdit}
+              onClose={() => {
+                setEditProductDialogOpen(false);
+                setProductToEdit(null);
+              }}
+              onSuccess={() => {
+                setEditProductDialogOpen(false);
+                setProductToEdit(null);
+                fetchProducts();
+              }}
+              categories={categories}
+              locations={locations}
+            />
+          )}
 
           <Card>
             <ProductTableToolbar
@@ -220,7 +245,11 @@ export function ProductView() {
 
                           // Pass update callback for inline edit save
                           onEdit={handleUpdateProductInList}
-                        />
+                          onShowBarcode={(product) => {
+                            setSelectedProductForBarcode(product);
+                            setBarcodeDialogOpen(true);
+                          }}
+                        />                        
                       ))}
                     <TableEmptyRows
                       height={68}
@@ -243,7 +272,21 @@ export function ProductView() {
             />
           </Card>
         </Grid>
-      </Grid>      
+      </Grid>
+
+      {selectedProductForBarcode && (
+        <BarcodeDialog
+          open={barcodeDialogOpen}
+          onClose={() => setBarcodeDialogOpen(false)}
+          product={{
+            uniqueId: selectedProductForBarcode.uniqueId,
+            itemName: selectedProductForBarcode.itemName,
+            brand: selectedProductForBarcode.brand,
+            rate: Number(selectedProductForBarcode.rate),
+            serialNumber: selectedProductForBarcode.serialNumber,
+          }}
+        />
+      )}     
     </DashboardContent>
   );
 }

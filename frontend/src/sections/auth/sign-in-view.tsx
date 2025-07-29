@@ -160,7 +160,7 @@ export function SignInView() {
         }}
       >
         <Typography variant="h5">Sign in</Typography>
-        <Typography
+        {/* <Typography
           variant="body2"
           sx={{
             color: 'text.secondary',
@@ -170,10 +170,10 @@ export function SignInView() {
           <Link variant="subtitle2" sx={{ ml: 0.5 }}>
             Get started
           </Link>
-        </Typography>
+        </Typography> */}
       </Box>
       {renderForm}
-      <Divider sx={{ my: 3, '&::before, &::after': { borderTopStyle: 'dashed' } }}>
+      {/* <Divider sx={{ my: 3, '&::before, &::after': { borderTopStyle: 'dashed' } }}>
         <Typography
           variant="overline"
           sx={{ color: 'text.secondary', fontWeight: 'fontWeightMedium' }}
@@ -197,7 +197,7 @@ export function SignInView() {
         <IconButton color="inherit">
           <Iconify width={22} icon="socials:twitter" />
         </IconButton>
-      </Box>
+      </Box> */}
     </>
   );
 }
