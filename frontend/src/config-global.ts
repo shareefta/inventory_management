@@ -8,6 +8,6 @@ export type ConfigValue = {
 };
 
 export const CONFIG: ConfigValue = {
-  appName: 'AL ATA & RAZA WORLD',
+  appName: 'RAZA WORLD',
   appVersion: packageJson.version,
 };

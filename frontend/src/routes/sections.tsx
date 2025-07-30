@@ -22,6 +22,7 @@ export const SignInPage = lazy(() => import('src/pages/sign-in'));
 export const ProductsPage = lazy(() => import('src/pages/products'));
 export const CategoryPage = lazy(() => import('src/pages/category'));
 export const LocationPage = lazy(() => import('src/pages/location'));
+export const PurchasePage = lazy(() => import('src/pages/purchase'));
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 const renderFallback = () => (
@@ -61,6 +62,7 @@ export const routesSection: RouteObject[] = [
       { path: 'products', element: <ProductsPage /> },
       { path: 'category', element: <CategoryPage /> },
       { path: 'location', element: <LocationPage /> },
+      { path: 'purchase', element: <PurchasePage /> },
     ],
   },
   {
@@ -77,6 +79,7 @@ export const routesSection: RouteObject[] = [
     children: [
       { index: true, element: <StaffDashboardPage /> },
       { path: 'products', element: <ProductsPage /> },
+      { path: 'purchase', element: <PurchasePage /> },
     ],
   },
   {

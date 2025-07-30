@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import imageCompression from 'browser-image-compression';
 
 import {
   Dialog,
@@ -75,8 +76,25 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) setForm((f) => ({ ...f, image: e.target.files![0] }));
+  // const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   if (e.target.files?.[0]) setForm((f) => ({ ...f, image: e.target.files![0] }));
+  // };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1024,
+        useWebWorker: true,
+      };
+      const compressedFile = await imageCompression(file, options);
+      setForm((f) => ({ ...f, image: compressedFile }));
+    } catch (err) {
+      console.error('❌ Image compression failed:', err);
+    }
   };
 
   const handleSubmit = async () => {
@@ -208,14 +226,6 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           margin="normal"
           required
         />
-
-        {/* {form.image === null && form.serial_number && (
-          <img
-            src={`https://barcodeapi.org/api/128/${form.serial_number}`}
-            alt="Barcode Preview"
-            style={{ margin: '10px 0', width: '150px' }}
-          />
-        )} */}
 
         <TextField
           label="Brand"
@@ -361,6 +371,7 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
         <Box mt={2}>
           <input
             accept="image/*"
+            capture="environment"
             id="image-upload"
             type="file"
             onChange={handleFileChange}

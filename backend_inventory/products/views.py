@@ -2,8 +2,8 @@ from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Product, Category, Location
-from .serializers import ProductSerializer, CategorySerializer, LocationSerializer
+from .models import Product, Category, Location, Purchase
+from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer
 
 # ----------------------------
 # Product ViewSet
@@ -37,6 +37,11 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class LocationViewSet(viewsets.ModelViewSet):
     queryset = Location.objects.all()
     serializer_class = LocationSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+class PurchaseViewSet(viewsets.ModelViewSet):
+    queryset = Purchase.objects.all().order_by('-purchase_date')
+    serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
 @api_view(['GET'])

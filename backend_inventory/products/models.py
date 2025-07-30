@@ -10,6 +10,9 @@ from barcode.writer import ImageWriter
 from PIL import Image
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 barcode_validator = RegexValidator(
     regex=r'^[A-Z0-9]{8,13}$',
@@ -92,3 +95,69 @@ class ProductLocation(models.Model):
 
     def __str__(self):
         return f"{self.product.item_name} at {self.location.name} - Qty: {self.quantity}"
+
+class Purchase(models.Model):
+    supplier_name = models.CharField(max_length=100)
+    invoice_number = models.CharField(max_length=100, blank=True, null=True)
+    purchase_date = models.DateField()
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2, editable=False, null=True)
+    discount = models.DecimalField(max_digits=15, decimal_places=2)
+    invoice_image = models.ImageField(upload_to='invoices/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.supplier_name} - {self.invoice_number or 'No Invoice'}"
+    
+    def calculate_total_amount(self):
+        total = 0
+        for item in self.items.all():
+            for loc in item.item_locations.all():
+                total += item.rate * loc.quantity
+        return total - self.discount
+
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            super().save(*args, **kwargs)
+        self.total_amount = self.calculate_total_amount()
+        super().save(update_fields=["total_amount"])
+
+class PurchaseItem(models.Model):
+    purchase = models.ForeignKey(Purchase, related_name='items', on_delete=models.CASCADE)
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
+    rate = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product.item_name} - {self.purchase}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        # Update product rate if needed
+        if self.rate != self.product.rate:
+            self.product.rate = self.rate
+            self.product.save()
+
+class PurchaseItemLocation(models.Model):
+    purchase_item = models.ForeignKey(PurchaseItem, on_delete=models.CASCADE, related_name='item_locations')
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = ('purchase_item', 'location')
+
+    def __str__(self):
+        return f"{self.purchase_item.product} @ {self.location} - Qty: {self.quantity}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        # Automatically update ProductLocation
+        product_location, created = ProductLocation.objects.get_or_create(
+            product=self.purchase_item.product,
+            location=self.location
+        )
+        product_location.quantity += self.quantity
+        product_location.save()
+
+        self.purchase_item.purchase.save()

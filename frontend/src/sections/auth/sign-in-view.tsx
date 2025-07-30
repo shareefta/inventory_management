@@ -65,23 +65,23 @@ export function SignInView() {
       localStorage.setItem('user', JSON.stringify(user));
       console.log(user);
 
-      router.push('/');
-      // switch ((user.role || '').toLowerCase()) {
-      //   case 'admin':
-      //     router.push('/');
-      //     break;
-      //   case 'management':
-      //     router.push('/dashboard/management');
-      //     break;
-      //   case 'staff':
-      //     router.push('/staff');
-      //     break;
-      //   case 'delivery':
-      //     router.push('/dashboard/delivery');
-      //     break;
-      //   default:
-      //     router.push('/sign-in');
-      // }
+      // router.push('/');
+      switch ((user.role || '').toLowerCase()) {
+        case 'admin':
+          router.push('/');
+          break;
+        case 'management':
+          router.push('/dashboard/management');
+          break;
+        case 'staff':
+          router.push('/staff');
+          break;
+        case 'delivery':
+          router.push('/dashboard/delivery');
+          break;
+        default:
+          router.push('/sign-in');
+      }
       
     } catch (error) {
       console.error('Login error:', error);

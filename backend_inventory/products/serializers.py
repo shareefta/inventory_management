@@ -1,7 +1,7 @@
 from itertools import product
 from rest_framework import serializers
 import json
-from .models import Product, Category, Location, ProductLocation
+from .models import Product, Category, Location, ProductLocation, Purchase, PurchaseItem, PurchaseItemLocation
 from django.db.models import Sum
 from rest_framework.validators import UniqueValidator
 import uuid
@@ -122,4 +122,75 @@ class ProductSerializer(serializers.ModelSerializer):
                     quantity=loc_data['quantity']
                 )
         
+        return instance
+    
+class PurchaseItemLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PurchaseItemLocation
+        fields = ['location', 'quantity']
+
+class PurchaseItemSerializer(serializers.ModelSerializer):
+    item_locations = PurchaseItemLocationSerializer(many=True)
+
+    class Meta:
+        model = PurchaseItem
+        fields = ['product', 'rate', 'item_locations']
+
+    def create(self, validated_data):
+        locations_data = validated_data.pop('item_locations')
+        purchase_item = PurchaseItem.objects.create(**validated_data)
+        for loc_data in locations_data:
+            PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
+        return purchase_item
+
+    def update(self, instance, validated_data):
+        locations_data = validated_data.pop('item_locations', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if locations_data is not None:
+            # Remove existing locations and recreate
+            instance.item_locations.all().delete()
+            for loc_data in locations_data:
+                PurchaseItemLocation.objects.create(purchase_item=instance, **loc_data)
+        return instance
+
+class PurchaseSerializer(serializers.ModelSerializer):
+    items = PurchaseItemSerializer(many=True)
+
+    class Meta:
+        model = Purchase
+        fields = [
+            'id', 'supplier_name', 'invoice_number', 'purchase_date',
+            'total_amount', 'discount', 'invoice_image', 'items', 'created_at', 'created_by'
+        ]
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        purchase = Purchase.objects.create(**validated_data)
+        for item_data in items_data:
+            item_locations_data = item_data.pop('item_locations')
+            purchase_item = PurchaseItem.objects.create(purchase=purchase, **item_data)
+            for loc_data in item_locations_data:
+                PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
+        return purchase
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if items_data is not None:
+            # Delete old purchase items + locations
+            instance.items.all().delete()
+
+            for item_data in items_data:
+                item_locations_data = item_data.pop('item_locations')
+                purchase_item = PurchaseItem.objects.create(purchase=instance, **item_data)
+                for loc_data in item_locations_data:
+                    PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
         return instance

@@ -10,19 +10,16 @@ import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
-import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
 
 export type UserProps = {
-  id: string;
-  name: string;
+  id: number;
+  username: string;
+  email: string;
   role: string;
-  status: string;
-  company: string;
-  avatarUrl: string;
-  isVerified: boolean;
+  is_active: boolean;
 };
 
 type UserTableRowProps = {
@@ -49,33 +46,15 @@ export function UserTableRow({ row, selected, onSelectRow }: UserTableRowProps) 
           <Checkbox disableRipple checked={selected} onChange={onSelectRow} />
         </TableCell>
 
-        <TableCell component="th" scope="row">
-          <Box
-            sx={{
-              gap: 2,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <Avatar alt={row.name} src={row.avatarUrl} />
-            {row.name}
-          </Box>
-        </TableCell>
-
-        <TableCell>{row.company}</TableCell>
-
+        <TableCell component="th" scope="row">{row.username}</TableCell>
+        <TableCell>{row.email}</TableCell>
         <TableCell>{row.role}</TableCell>
-
         <TableCell align="center">
-          {row.isVerified ? (
+          {row.is_active ? (
             <Iconify width={22} icon="solar:check-circle-bold" sx={{ color: 'success.main' }} />
           ) : (
             '-'
           )}
-        </TableCell>
-
-        <TableCell>
-          <Label color={(row.status === 'banned' && 'error') || 'success'}>{row.status}</Label>
         </TableCell>
 
         <TableCell align="right">

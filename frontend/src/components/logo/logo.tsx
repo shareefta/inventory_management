@@ -183,8 +183,8 @@ export function Logo({
     >
       {/* {isSingle ? singleLogo : fullLogo} */}
       <img
-        src={isSingle ? '/logo.jpg' : '/logo2.png'}
-        alt="AL ATA & RAZA WORLD"
+        src={isSingle ? '/assets/logo-single.png' : '/assets/logo-full.png'}
+        alt="RAZA WORLD"
         style={{
           width: '100%',
           height: '100%',

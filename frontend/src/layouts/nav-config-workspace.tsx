@@ -5,9 +5,9 @@ import type { WorkspacesPopoverProps } from './components/workspaces-popover';
 export const _workspaces: WorkspacesPopoverProps['data'] = [
   {
     id: 'team-1',
-    name: 'AL ATA',
+    name: 'RAZA WORLD',
     plan: '',
-    logo: '/logo.jpg',
+    logo: '/raza_world.png',
   },
   {
     id: 'team-2',

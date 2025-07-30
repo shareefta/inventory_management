@@ -22,5 +22,10 @@ export const StaffNavData = [
     title: 'Product',
     path: '/staff/products',
     icon: icon('ic-cart'),
-  },  
+  },
+  {
+    title: 'Purchase',
+    path: '/purchase',
+    icon: icon('ic-cart'),
+  },
 ];

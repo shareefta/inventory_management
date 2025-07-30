@@ -4,17 +4,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import UserCreateSerializer, UserDetailSerializer
 
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def get_user_profile(request):
-#     user = request.user
-#     return Response({
-#         "id": user.id,
-#         "username": user.username,
-#         "email": user.email,
-#         "role": user.role,
-#     })
-
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def create_user(request):
@@ -28,4 +17,12 @@ def create_user(request):
 @permission_classes([IsAuthenticated])
 def get_user_profile(request):
     serializer = UserDetailSerializer(request.user)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def list_users(request):
+    from .models import User
+    users = User.objects.all()
+    serializer = UserDetailSerializer(users, many=True)
     return Response(serializer.data)

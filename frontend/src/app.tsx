@@ -16,7 +16,7 @@ type AppProps = {
 export default function App({ children }: AppProps) {
   
   useEffect(() => {
-    document.title = 'AL ATA & RAZA WORLD';
+    document.title = 'RAZA WORLD';
 
     const storedUser = localStorage.getItem('user');
     if (storedUser) {

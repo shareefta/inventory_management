@@ -23,6 +23,11 @@ export const navData: NavItem[] = [
     path: '/products',
     icon: icon('ic-cart'),
   },
+  // {
+  //   title: 'Purchase',
+  //   path: '/purchase',
+  //   icon: icon('ic-cart'),
+  // },
   {
     title: 'Category',
     path: '/category',

@@ -27,8 +27,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Rawa World',
-        short_name: 'RW',
+        name: 'Raza World',
+        short_name: 'Raza',
         description: 'Raza World Inventory Management System',
         theme_color: '#ffffff',
         background_color: '#ffffff',

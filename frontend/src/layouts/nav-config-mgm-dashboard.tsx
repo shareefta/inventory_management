@@ -18,29 +18,4 @@ export const mgmNavData = [
     path: '/',
     icon: icon('ic-analytics'),
   },
-//   {
-//     title: 'Product',
-//     path: '/products',
-//     icon: icon('ic-cart'),
-//   },
-//   {
-//     title: 'Purchases',
-//     path: '/purchases',
-//     icon: icon('ic-purchase'),
-//   },
-//   {
-//     title: 'Sales',
-//     path: '/sales',
-//     icon: icon('ic-sales'),
-//   },
-//   {
-//     title: 'Orders',
-//     path: '/orders',
-//     icon: icon('ic-order'),
-//   },
-//   {
-//     title: 'Delivery Partners',
-//     path: '/user',
-//     icon: icon('ic-delivery'),
-//   },
 ];
