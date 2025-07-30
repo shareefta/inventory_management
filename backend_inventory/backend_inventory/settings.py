@@ -160,7 +160,12 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3039"
 ]
 
-CORS_ALLOW_HEADERS = ['*']
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'Authorization',
+]
+
 CORS_ALLOW_METHODS = ['*']
 
 SIMPLE_JWT = {

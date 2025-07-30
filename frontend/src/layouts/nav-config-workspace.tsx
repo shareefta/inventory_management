@@ -7,7 +7,7 @@ export const _workspaces: WorkspacesPopoverProps['data'] = [
     id: 'team-1',
     name: 'RAZA WORLD',
     plan: '',
-    logo: '/raza_world.png',
+    logo: '/assets/icons/workspaces/logo_rw.png',
   },
   {
     id: 'team-2',

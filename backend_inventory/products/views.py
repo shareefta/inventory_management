@@ -2,6 +2,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, JSONParser
 from .models import Product, Category, Location, Purchase
 from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer
 
@@ -43,6 +44,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all().order_by('-purchase_date')
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    parser_classes = [MultiPartParser, JSONParser]
 
 @api_view(['GET'])
 def scan_barcode(request):

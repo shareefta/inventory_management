@@ -1,182 +1,201 @@
-import type { LocationEntry, CategoryEntry } from 'src/sections/product/product-table-row';
-import type { ProductProps, ProductLocationEntry } from 'src/sections/product/product-table-row';
+import type { PurchaseProps, PurchaseItemEntry, PurchaseItemLocationEntry } from 'src/api/purchases';
 
 import { useEffect, useState } from 'react';
 
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  TextField, MenuItem, Select, IconButton, Box, Typography,
-  Avatar, Switch, FormControlLabel
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, TextField, Box, Avatar, IconButton,
+  Typography, Select, MenuItem
 } from '@mui/material';
 
-import { updateProduct } from 'src/api/products';
+import { updatePurchase } from 'src/api/purchases';
 
 import { Iconify } from 'src/components/iconify';
 
 type PurchaseEditDialogProps = {
   open: boolean;
-  product: ProductProps | null;
+  purchase: PurchaseProps | null;
   onClose: () => void;
-  categories: CategoryEntry[];
-  locations: LocationEntry[];
-  onSuccess?: (updatedProduct: ProductProps) => void; // optional callback
-  onSave?: (updated: ProductProps) => void;
+  onSuccess?: (updated: PurchaseProps) => void;
 };
 
-export default function PurchaseEditDialog({
-  open,
-  product,
-  onClose,
-  categories,
-  locations,
-  onSuccess,
-  onSave
-}: ProductEditDialogProps) {
-  const [formData, setFormData] = useState<ProductProps | null>(null);
+// Placeholder product and location lists — replace with dynamic data
+const mockProducts = [
+  { id: 1, itemName: 'Product A' },
+  { id: 2, itemName: 'Product B' }
+];
+
+const mockLocations = [
+  { id: 1, name: 'Warehouse A' },
+  { id: 2, name: 'Warehouse B' }
+];
+
+export default function PurchaseEditDialog({ open, purchase, onClose, onSuccess }: PurchaseEditDialogProps) {
+  const [formData, setFormData] = useState<PurchaseProps | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!product) return;
+    let revoke: (() => void) | null = null;
 
-    setFormData({ ...product });
+    if (purchase) {
+      setFormData({ ...purchase });
 
-    if (product.image instanceof File) {
-      const url = URL.createObjectURL(product.image);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(product.image ?? null);
+      if (purchase.invoice_image instanceof File) {
+        const url = URL.createObjectURL(purchase.invoice_image);
+        setPreviewUrl(url);
+
+        revoke = () => URL.revokeObjectURL(url);
+        window.addEventListener('beforeunload', revoke);
+      } else if (typeof purchase.invoice_image === 'string') {
+        setPreviewUrl(purchase.invoice_image);
+      }
     }
-  }, [product]);
 
-  const handleFieldChange = (field: keyof ProductProps, value: any) => {
-    setFormData((prev) => prev ? { ...prev, [field]: value } : prev);
-  };
-
-  const handleLocationChange = (index: number, key: 'location' | 'quantity', value: any) => {
-    if (!formData) return;
-    const updatedLocations = [...formData.locations];
-    if (key === 'location') {
-      const selected = locations.find((loc) => loc.id === Number(value));
-      if (selected) updatedLocations[index] = { ...updatedLocations[index], location: selected };
-    } else {
-      updatedLocations[index] = { ...updatedLocations[index], quantity: Number(value) };
-    }
-    setFormData({ ...formData, locations: updatedLocations });
-  };
-
-  const handleAddLocation = () => {
-    if (!formData) return;
-    const newEntry: ProductLocationEntry = {
-      location: { id: 0, name: '' },
-      quantity: 0,
+    return () => {
+      if (revoke) {
+        window.removeEventListener('beforeunload', revoke);
+        revoke();
+      }
     };
-    setFormData({ ...formData, locations: [...formData.locations, newEntry] });
-  };
-
-  const handleRemoveLocation = (index: number) => {
-    if (!formData) return;
-    const updated = formData.locations.filter((_, i) => i !== index);
-    setFormData({ ...formData, locations: updated });
-  };
+  }, [purchase]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setFormData((prev) => prev ? { ...prev, image: file } : prev);
-      const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
+      setFormData((prev) => prev && ({ ...prev, invoice_image: file }));
+      setPreviewUrl(URL.createObjectURL(file));
     }
+  };
+
+  const handleChange = (field: keyof PurchaseProps, value: any) => {
+    setFormData((prev) => prev && ({ ...prev, [field]: value }));
+  };
+
+  const handleItemChange = (index: number, field: keyof PurchaseItemEntry, value: any) => {
+    if (!formData) return;
+    const updatedItems = [...formData.items];
+    (updatedItems[index] as any)[field] = value;
+    setFormData({ ...formData, items: updatedItems });
+  };
+
+  const handleItemLocationChange = (itemIndex: number, locIndex: number, field: keyof PurchaseItemLocationEntry, value: any) => {
+    if (!formData) return;
+    const updatedItems = [...formData.items];
+    const updatedLocs = [...updatedItems[itemIndex].item_locations];
+    (updatedLocs[locIndex] as any)[field] = value;
+    updatedItems[itemIndex].item_locations = updatedLocs;
+    setFormData({ ...formData, items: updatedItems });
   };
 
   const handleSubmit = async () => {
     if (!formData) return;
 
-    const form = new FormData();
-    form.append('item_name', formData.itemName);
-    form.append('brand', formData.brand);
-    form.append('serial_number', formData.serialNumber);
-    form.append('variants', formData.variants);
-    form.append('rate', formData.rate.toString());
-    form.append('selling_price', formData.sellingPrice.toString());
-    form.append('active', formData.active.toString());
-    form.append('description', formData.description || '');
+    const fd = new FormData();
+    fd.append('supplier_name', formData.supplier_name);
+    fd.append('purchase_date', formData.purchase_date);
+    fd.append('discount', String(formData.discount));
+    fd.append('total_amount', String(formData.total_amount ?? 0));
+    fd.append('invoice_number', formData.invoice_number || '');
 
-    const selectedCategory = categories.find(cat => cat.name === formData.category);
-    if (selectedCategory) {
-      form.append('category_id', selectedCategory.id.toString());
+    if (formData.invoice_image instanceof File) {
+      fd.append('invoice_image', formData.invoice_image);
     }
 
-    if (formData.image instanceof File) {
-      form.append('image', formData.image);
-    }
-
-    const locationsPayload = formData.locations.map(loc => ({
-      location_id: loc.location.id,
-      quantity: loc.quantity
+    // Nested item and item_locations
+    const itemsPayload = formData.items.map((item) => ({
+      product: typeof item.product === 'object' ? item.product.id : item.product,
+      rate: item.rate,
+      item_locations: item.item_locations.map((loc) => ({
+        location: typeof loc.location === 'object' ? loc.location.id : loc.location,
+        quantity: loc.quantity,
+      })),
     }));
-    form.append('locations', JSON.stringify(locationsPayload));
+
+    fd.append('items', JSON.stringify(itemsPayload));
 
     try {
-      const updated = await updateProduct(formData.id.toString(), form, true);
-      onSave?.(updated);
+      const updated = await updatePurchase(formData.id!, fd);
       onSuccess?.(updated);
       onClose();
     } catch (error) {
-      console.error('Failed to update product:', error);
-      alert('Update failed. Please try again.');
+      console.error('Update failed:', error);
+      alert('Failed to update purchase.');
     }
   };
 
   if (!formData) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>Edit Product</DialogTitle>
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField label="Item Name" value={formData.itemName} onChange={(e) => handleFieldChange('itemName', e.target.value)} fullWidth />
-        <TextField label="Brand" value={formData.brand} onChange={(e) => handleFieldChange('brand', e.target.value)} fullWidth />
-        <TextField label="Serial Number" value={formData.serialNumber} onChange={(e) => handleFieldChange('serialNumber', e.target.value)} fullWidth />
-        <TextField label="Variants" value={formData.variants} onChange={(e) => handleFieldChange('variants', e.target.value)} fullWidth />
-        <TextField label="Rate" type="number" value={formData.rate} onChange={(e) => handleFieldChange('rate', Number(e.target.value))} fullWidth />
-        <TextField label="Selling Price" type="number" value={formData.sellingPrice} onChange={(e) => handleFieldChange('sellingPrice', Number(e.target.value))} fullWidth />
-
-        <Select fullWidth value={formData.category} onChange={(e) => handleFieldChange('category', e.target.value)}>
-          {categories.map((cat) => (
-            <MenuItem key={cat.id} value={cat.name}>{cat.name}</MenuItem>
-          ))}
-        </Select>
-
-        <TextField label="Description" value={formData.description} onChange={(e) => handleFieldChange('description', e.target.value)} fullWidth multiline minRows={3} />
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Edit Purchase</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <TextField label="Supplier Name" value={formData.supplier_name} onChange={(e) => handleChange('supplier_name', e.target.value)} />
+        <TextField label="Invoice Number" value={formData.invoice_number ?? ''} onChange={(e) => handleChange('invoice_number', e.target.value)} />
+        <TextField label="Purchase Date" type="date" value={formData.purchase_date} onChange={(e) => handleChange('purchase_date', e.target.value)} InputLabelProps={{ shrink: true }} />
+        <TextField label="Discount" type="number" value={formData.discount} onChange={(e) => handleChange('discount', parseFloat(e.target.value))} />
+        <TextField label="Total Amount" type="number" value={formData.total_amount ?? ''} onChange={(e) => handleChange('total_amount', parseFloat(e.target.value))} />
 
         <Box display="flex" alignItems="center" gap={2}>
-          <Avatar variant="rounded" src={previewUrl || '/assets/images/fallback-image.png'} sx={{ width: 64, height: 64 }} />
+          <Avatar src={previewUrl || '/assets/images/fallback-image.png'} variant="rounded" sx={{ width: 64, height: 64 }} />
           <Button variant="outlined" component="label">
             Upload Image
-            <input hidden type="file" accept="image/*" onChange={handleImageUpload} />
+            <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
           </Button>
         </Box>
 
-        <FormControlLabel
-          control={<Switch checked={formData.active} onChange={(e) => handleFieldChange('active', e.target.checked)} color="primary" />}
-          label="Active"
-        />
-
-        <Typography variant="subtitle1" mt={2}>Locations</Typography>
-        {formData.locations.map((entry, index) => (
-          <Box key={index} display="flex" gap={1} alignItems="center">
-            <Select size="small" value={entry.location.id} onChange={(e) => handleLocationChange(index, 'location', e.target.value)} sx={{ flex: 1 }}>
-              {locations.map((loc) => (
-                <MenuItem key={loc.id} value={loc.id}>{loc.name}</MenuItem>
+        <Typography variant="h6">Items</Typography>
+        {formData.items.map((item, idx) => (
+          <Box key={idx} p={2} border="1px dashed grey" borderRadius={2} mb={2}>
+            <Select
+              fullWidth
+              value={typeof item.product === 'object' ? item.product.id : item.product}
+              onChange={(e) => handleItemChange(idx, 'product', Number(e.target.value))}
+            >
+              {mockProducts.map((p) => (
+                <MenuItem key={p.id} value={p.id}>{p.itemName}</MenuItem>
               ))}
             </Select>
-            <TextField size="small" type="number" value={entry.quantity} onChange={(e) => handleLocationChange(index, 'quantity', e.target.value)} sx={{ width: 100 }} />
-            <IconButton color="error" onClick={() => handleRemoveLocation(index)}><Iconify icon="solar:trash-bin-trash-bold" /></IconButton>
+
+            <TextField
+              fullWidth
+              label="Rate"
+              type="number"
+              value={item.rate}
+              onChange={(e) => handleItemChange(idx, 'rate', parseFloat(e.target.value))}
+              sx={{ mt: 2 }}
+            />
+
+            <Typography variant="subtitle1" mt={2}>Locations</Typography>
+            {item.item_locations.map((loc, locIdx) => (
+              <Box key={locIdx} display="flex" gap={1} mt={1}>
+                <Select
+                  value={typeof loc.location === 'object' ? loc.location.id : loc.location}
+                  onChange={(e) =>
+                    handleItemLocationChange(idx, locIdx, 'location', Number(e.target.value))
+                  }
+                  sx={{ flex: 1 }}
+                >
+                  {mockLocations.map((l) => (
+                    <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
+                  ))}
+                </Select>
+                <TextField
+                  label="Quantity"
+                  type="number"
+                  value={loc.quantity}
+                  onChange={(e) =>
+                    handleItemLocationChange(idx, locIdx, 'quantity', parseInt(e.target.value))
+                  }
+                  sx={{ width: 100 }}
+                />
+              </Box>
+            ))}
           </Box>
         ))}
-        <Button size="small" variant="outlined" onClick={handleAddLocation}>Add Location</Button>
       </DialogContent>
+
       <DialogActions>
-        <Button onClick={onClose} variant="outlined">Cancel</Button>
+        <Button onClick={onClose}>Cancel</Button>
         <Button onClick={handleSubmit} variant="contained">Save</Button>
       </DialogActions>
     </Dialog>

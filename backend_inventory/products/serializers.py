@@ -5,6 +5,7 @@ from .models import Product, Category, Location, ProductLocation, Purchase, Purc
 from django.db.models import Sum
 from rest_framework.validators import UniqueValidator
 import uuid
+from rest_framework.exceptions import ValidationError
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -125,40 +126,23 @@ class ProductSerializer(serializers.ModelSerializer):
         return instance
     
 class PurchaseItemLocationSerializer(serializers.ModelSerializer):
+    location = serializers.PrimaryKeyRelatedField(queryset=Location.objects.all())
+
     class Meta:
         model = PurchaseItemLocation
         fields = ['location', 'quantity']
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
     item_locations = PurchaseItemLocationSerializer(many=True)
 
     class Meta:
         model = PurchaseItem
         fields = ['product', 'rate', 'item_locations']
 
-    def create(self, validated_data):
-        locations_data = validated_data.pop('item_locations')
-        purchase_item = PurchaseItem.objects.create(**validated_data)
-        for loc_data in locations_data:
-            PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
-        return purchase_item
-
-    def update(self, instance, validated_data):
-        locations_data = validated_data.pop('item_locations', None)
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        if locations_data is not None:
-            # Remove existing locations and recreate
-            instance.item_locations.all().delete()
-            for loc_data in locations_data:
-                PurchaseItemLocation.objects.create(purchase_item=instance, **loc_data)
-        return instance
-
 class PurchaseSerializer(serializers.ModelSerializer):
-    items = PurchaseItemSerializer(many=True)
+    items = PurchaseItemSerializer(many=True, write_only=True)
+    invoice_image = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Purchase
@@ -166,31 +150,57 @@ class PurchaseSerializer(serializers.ModelSerializer):
             'id', 'supplier_name', 'invoice_number', 'purchase_date',
             'total_amount', 'discount', 'invoice_image', 'items', 'created_at', 'created_by'
         ]
+        read_only_fields = ['total_amount']
+    
+    def to_internal_value(self, data):
+        # Check if 'items' is passed as a JSON string from FormData
+        if isinstance(data.get('items'), str):
+            try:
+                data['items'] = json.loads(data['items'])
+            except json.JSONDecodeError:
+                raise ValidationError({'items': 'Invalid JSON format'})
+        return super().to_internal_value(data)
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         purchase = Purchase.objects.create(**validated_data)
+
         for item_data in items_data:
             item_locations_data = item_data.pop('item_locations')
             purchase_item = PurchaseItem.objects.create(purchase=purchase, **item_data)
+
             for loc_data in item_locations_data:
                 PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
+
+            product = purchase_item.product
+            if purchase_item.rate != product.rate:
+                product.rate = purchase_item.rate
+                product.save()
+
+            for loc in item_locations_data:
+                location = loc['location']
+                qty = loc['quantity']
+
         return purchase
 
     def update(self, instance, validated_data):
-        items_data = validated_data.pop('items', None)
+        items_data = validated_data.pop('items', None) 
 
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        if items_data is not None:
-            # Delete old purchase items + locations
-            instance.items.all().delete()
+        if items_data:
+            if isinstance(items_data, str):
+                items_data = json.loads(items_data)
+            
+            PurchaseItem.objects.filter(purchase=instance).delete()
 
             for item_data in items_data:
                 item_locations_data = item_data.pop('item_locations')
                 purchase_item = PurchaseItem.objects.create(purchase=instance, **item_data)
+
                 for loc_data in item_locations_data:
                     PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
         return instance

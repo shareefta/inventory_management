@@ -79,7 +79,7 @@ class Product(models.Model):
         if not self.unique_id:
             self.unique_id = str(uuid.uuid4()).replace('-', '')[:13].upper()
         
-        self.full_clean()  # This runs the clean() method and field validations
+        self.full_clean()
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -91,7 +91,7 @@ class ProductLocation(models.Model):
     quantity = models.PositiveIntegerField(default=0)
 
     class Meta:
-        unique_together = ('product', 'location')  # Ensure one entry per location per product
+        unique_together = ('product', 'location')
 
     def __str__(self):
         return f"{self.product.item_name} at {self.location.name} - Qty: {self.quantity}"
