@@ -25,22 +25,25 @@ class PurchaseItemLocationInline(nested_admin.NestedTabularInline):
     extra = 1
     autocomplete_fields = ['location']
 
-
 class PurchaseItemInline(nested_admin.NestedStackedInline):
     model = PurchaseItem
     extra = 1
     autocomplete_fields = ['product']
     inlines = [PurchaseItemLocationInline]
 
-
 @admin.register(Purchase)
 class PurchaseAdmin(nested_admin.NestedModelAdmin):
-    list_display = ['supplier_name', 'invoice_number', 'purchase_date', 'total_amount', 'created_by']
-    list_filter = ['purchase_date', 'supplier_name']
+    list_display = ['supplier_name', 'invoice_number', 'purchase_date', 'payment_mode', 'total_amount', 'created_by']
+    list_filter = ['purchase_date', 'supplier_name', 'payment_mode']
     search_fields = ['supplier_name', 'invoice_number']
     inlines = [PurchaseItemInline]
     readonly_fields = ['created_by', 'created_at', 'total_amount']
     date_hierarchy = 'purchase_date'
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)

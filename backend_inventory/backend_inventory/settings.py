@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'delivery',
     'corsheaders',
     'rest_framework_simplejwt',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -146,6 +147,9 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ),
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
+    ]
 }
 
 CORS_ALLOW_CREDENTIALS = True

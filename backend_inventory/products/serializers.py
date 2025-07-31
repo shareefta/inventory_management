@@ -126,81 +126,88 @@ class ProductSerializer(serializers.ModelSerializer):
         return instance
     
 class PurchaseItemLocationSerializer(serializers.ModelSerializer):
-    location = serializers.PrimaryKeyRelatedField(queryset=Location.objects.all())
-
     class Meta:
         model = PurchaseItemLocation
-        fields = ['location', 'quantity']
+        fields = ['id', 'location', 'quantity']
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
     item_locations = PurchaseItemLocationSerializer(many=True)
 
     class Meta:
         model = PurchaseItem
-        fields = ['product', 'rate', 'item_locations']
+        fields = ['id', 'product', 'rate', 'item_locations']
+    
+    def validate_item_locations(self, value):
+        seen_locations = set()
+        for loc in value:
+            location_id = loc.get('location')
+            if location_id in seen_locations:
+                raise serializers.ValidationError(
+                    f"Duplicate location ID {location_id} in item_locations."
+                )
+            seen_locations.add(location_id)
+        return value
 
 class PurchaseSerializer(serializers.ModelSerializer):
-    items = PurchaseItemSerializer(many=True, write_only=True)
-    invoice_image = serializers.ImageField(required=False, allow_null=True)
+    items = PurchaseItemSerializer(many=True)
 
     class Meta:
         model = Purchase
         fields = [
-            'id', 'supplier_name', 'invoice_number', 'purchase_date',
-            'total_amount', 'discount', 'invoice_image', 'items', 'created_at', 'created_by'
+            'id', 'supplier_name', 'contact_number',
+            'invoice_number', 'invoice_image', 'purchase_date',
+            'payment_mode', 'discount', 'total_amount', 'items'
         ]
         read_only_fields = ['total_amount']
-    
+
     def to_internal_value(self, data):
-        # Check if 'items' is passed as a JSON string from FormData
-        if isinstance(data.get('items'), str):
+        # Parse items JSON string before validation
+        items = data.get('items')
+        if isinstance(items, str):
             try:
-                data['items'] = json.loads(data['items'])
+                data = data.copy()
+                data['items'] = json.loads(items)
             except json.JSONDecodeError:
-                raise ValidationError({'items': 'Invalid JSON format'})
+                raise serializers.ValidationError({'items': 'Invalid JSON format'})
         return super().to_internal_value(data)
 
     def create(self, validated_data):
-        items_data = validated_data.pop('items')
-        purchase = Purchase.objects.create(**validated_data)
+        request = self.context.get('request')
+        items_data = validated_data.pop('items', [])
+
+        purchase = Purchase.objects.create(created_by=request.user, **validated_data)
 
         for item_data in items_data:
-            item_locations_data = item_data.pop('item_locations')
-            purchase_item = PurchaseItem.objects.create(purchase=purchase, **item_data)
+            locs_data = item_data.pop('item_locations', [])
+            item = PurchaseItem.objects.create(purchase=purchase, **item_data)
 
-            for loc_data in item_locations_data:
-                PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
+            for loc_data in locs_data:
+                PurchaseItemLocation.objects.create(purchase_item=item, **loc_data)
 
-            product = purchase_item.product
-            if purchase_item.rate != product.rate:
-                product.rate = purchase_item.rate
-                product.save()
-
-            for loc in item_locations_data:
-                location = loc['location']
-                qty = loc['quantity']
-
+        purchase.total_amount = purchase.calculate_total_amount()
+        purchase.save(update_fields=["total_amount"])
         return purchase
 
     def update(self, instance, validated_data):
-        items_data = validated_data.pop('items', None) 
+        items_data = validated_data.pop('items', None)
 
-        if items_data:
-            if isinstance(items_data, str):
-                items_data = json.loads(items_data)
-            
-            PurchaseItem.objects.filter(purchase=instance).delete()
-
+        if items_data is not None:
+            instance.items.all().delete()
             for item_data in items_data:
-                item_locations_data = item_data.pop('item_locations')
-                purchase_item = PurchaseItem.objects.create(purchase=instance, **item_data)
+                locs_data = item_data.pop('item_locations', [])
+                item = PurchaseItem.objects.create(purchase=instance, **item_data)
 
-                for loc_data in item_locations_data:
-                    PurchaseItemLocation.objects.create(purchase_item=purchase_item, **loc_data)
-        
+                for loc_data in locs_data:
+                    PurchaseItemLocation.objects.create(purchase_item=item, **loc_data)
+
+                if item.rate != item.product.rate:
+                    item.product.rate = item.rate
+                    item.product.save()
+
+        # Update other fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.save()
 
+        instance.total_amount = instance.calculate_total_amount()
+        instance.save()
         return instance

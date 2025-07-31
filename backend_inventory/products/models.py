@@ -96,19 +96,34 @@ class ProductLocation(models.Model):
     def __str__(self):
         return f"{self.product.item_name} at {self.location.name} - Qty: {self.quantity}"
 
+def invoice_image_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1]
+    new_filename = f"{uuid.uuid4()}{ext}"
+    return f'invoices/{new_filename}'
+
+
 class Purchase(models.Model):
+    PAYMENT_CHOICES = [
+        ('Cash', 'Cash'),
+        ('Credit', 'Credit'),
+        ('Card', 'Card'),
+        ('Online', 'Online'),
+    ]
+
     supplier_name = models.CharField(max_length=100)
+    contact_number = models.CharField(max_length=20, blank=True, null=True)
+    payment_mode = models.CharField(max_length=20, choices=PAYMENT_CHOICES, blank=True, null=True)
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     purchase_date = models.DateField()
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2, editable=False, null=True)
-    discount = models.DecimalField(max_digits=15, decimal_places=2)
-    invoice_image = models.ImageField(upload_to='invoices/', null=True, blank=True)
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2, editable=False, null=True, blank=True)
+    discount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    invoice_image = models.ImageField(upload_to=invoice_image_upload_path, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return f"{self.supplier_name} - {self.invoice_number or 'No Invoice'}"
-    
+
     def calculate_total_amount(self):
         total = 0
         for item in self.items.all():
@@ -117,10 +132,12 @@ class Purchase(models.Model):
         return total - self.discount
 
     def save(self, *args, **kwargs):
-        if not self.pk:
-            super().save(*args, **kwargs)
-        self.total_amount = self.calculate_total_amount()
-        super().save(update_fields=["total_amount"])
+        creating = not self.pk
+        super().save(*args, **kwargs)
+        if not creating:
+            self.total_amount = self.calculate_total_amount()
+            super().save(update_fields=["total_amount"])
+
 
 class PurchaseItem(models.Model):
     purchase = models.ForeignKey(Purchase, related_name='items', on_delete=models.CASCADE)
@@ -130,6 +147,12 @@ class PurchaseItem(models.Model):
     def __str__(self):
         return f"{self.product.item_name} - {self.purchase}"
 
+    def get_total_quantity(self):
+        return sum(loc.quantity for loc in self.item_locations.all())
+
+    def get_total_price(self):
+        return self.get_total_quantity() * self.rate
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
@@ -138,9 +161,10 @@ class PurchaseItem(models.Model):
             self.product.rate = self.rate
             self.product.save()
 
+
 class PurchaseItemLocation(models.Model):
     purchase_item = models.ForeignKey(PurchaseItem, on_delete=models.CASCADE, related_name='item_locations')
-    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    location = models.ForeignKey('products.Location', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
 
     class Meta:
@@ -150,14 +174,24 @@ class PurchaseItemLocation(models.Model):
         return f"{self.purchase_item.product} @ {self.location} - Qty: {self.quantity}"
 
     def save(self, *args, **kwargs):
+        is_new = self._state.adding
+
+        # For updates, calculate the difference
+        if not is_new:
+            previous = PurchaseItemLocation.objects.get(pk=self.pk)
+            quantity_diff = self.quantity - previous.quantity
+        else:
+            quantity_diff = self.quantity
+
         super().save(*args, **kwargs)
 
-        # Automatically update ProductLocation
-        product_location, created = ProductLocation.objects.get_or_create(
+        # Update ProductLocation stock
+        product_location, _ = ProductLocation.objects.get_or_create(
             product=self.purchase_item.product,
             location=self.location
         )
-        product_location.quantity += self.quantity
+        product_location.quantity += quantity_diff
         product_location.save()
 
+        # Update total on the Purchase
         self.purchase_item.purchase.save()

@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, JSONParser
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Product, Category, Location, Purchase
 from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer
 
@@ -45,6 +46,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     parser_classes = [MultiPartParser, JSONParser]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['supplier_name', 'payment_mode', 'purchase_date']
+    search_fields = ['supplier_name', 'invoice_number']
 
 @api_view(['GET'])
 def scan_barcode(request):
