@@ -1,11 +1,11 @@
 // Import remains same...
 import { useEffect, useState } from 'react';
-import imageCompression from 'browser-image-compression';
 
+import Grid from '@mui/material/Grid';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, MenuItem, CircularProgress,
-  Box, IconButton, InputAdornment, Typography
+  Box, IconButton, Typography
 } from '@mui/material';
 
 import { createPurchase } from 'src/api/purchases';
@@ -33,6 +33,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
     invoice_number: '',
     purchase_date: '',
     payment_mode: '',
+    purchased_by: '',
     discount: 0,
     invoice_image: null as File | null,
     items: [] as {
@@ -48,6 +49,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
       invoice_number: '',
       purchase_date: '',
       payment_mode: '',
+      purchased_by: '',
       discount: 0,
       invoice_image: null,
       items: [],
@@ -55,8 +57,8 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   };
 
   const grandTotal = form.items.reduce((acc, item) => {
-    const itemQty = item.item_locations.reduce((sum, loc) => sum + loc.quantity, 0);
-    return acc + item.rate * itemQty;
+    const qty = item.item_locations.reduce((sum, l) => sum + l.quantity, 0);
+    return acc + item.rate * qty;
   }, 0) - form.discount;
 
   useEffect(() => {
@@ -113,12 +115,13 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
       purchase_date: form.purchase_date,
       discount: form.discount,
       payment_mode: form.payment_mode as 'Cash' | 'Credit' | 'Card' | 'Online',
+      purchased_by: form.purchased_by as 'AZIZIYAH_SHOP' | 'ALWAB_SHOP' | 'MAIN_STORE' | 'JAMSHEER' | 'FAWAS' | 'IRSHAD' | 'MOOSA' | 'FATHIH' | 'FIROZ',
+      total_amount: grandTotal,
       items: cleanedItems,
     };
 
     // Make the POST request
     await createPurchase(payload);
-
     onSuccess();
     onClose();
     resetForm();
@@ -137,112 +140,172 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   );
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle>Create New Purchase</DialogTitle>
       <DialogContent dividers>
-        <TextField label="Supplier Name" fullWidth margin="normal"
-          value={form.supplier_name} onChange={(e) => handleFormChange('supplier_name', e.target.value)} />
-        <TextField label="Invoice Number" fullWidth margin="normal"
-          value={form.invoice_number} onChange={(e) => handleFormChange('invoice_number', e.target.value)} />
-        <TextField label="Purchase Date" type="date" fullWidth margin="normal"
-          InputLabelProps={{ shrink: true }} value={form.purchase_date}
-          onChange={(e) => handleFormChange('purchase_date', e.target.value)} />
-        <TextField label="Discount" type="number" fullWidth margin="normal"
-          value={form.discount} onChange={(e) => handleFormChange('discount', Number(e.target.value))} />
-        <TextField label="Payment Mode" select fullWidth margin="normal"
-          value={form.payment_mode} onChange={(e) => handleFormChange('payment_mode', e.target.value)}>
-          <MenuItem value="Cash">Cash</MenuItem>
-          <MenuItem value="Credit">Credit</MenuItem>
-          <MenuItem value="Online">Online</MenuItem>
-          <MenuItem value="Card">Card</MenuItem>
-        </TextField>
 
-        <Box mt={2}>
-          {form.items.map((item, index) => (
-            <Box key={index} sx={{ border: '1px solid #ccc', p: 2, mb: 2, borderRadius: 2 }}>
-              <TextField label="Product" select fullWidth sx={{ mb: 2 }}
-                value={item.product} onChange={(e) => handleItemChange(index, 'product', Number(e.target.value))}>
-                {products.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{p.itemName}</MenuItem>
-                ))}
-              </TextField>
+        {/* Section 1: Purchase Details */}
+        <Typography variant="h6" gutterBottom>Purchase Details</Typography>
+        <Grid container spacing={2} mb={3}>
+          <Grid size={{ sm:6, md: 2 }}>
+            <TextField label="Purchase Date" type="date" fullWidth InputLabelProps={{ shrink: true }}
+              value={form.purchase_date}
+              onChange={(e) => handleFormChange('purchase_date', e.target.value)} />
+          </Grid>
+          <Grid size={{ sm:6, md: 4 }}>
+            <TextField label="Supplier Name" fullWidth
+              value={form.supplier_name}
+              onChange={(e) => handleFormChange('supplier_name', e.target.value)} />
+          </Grid>
+          <Grid size={{ sm:6, md: 2 }}>
+            <TextField label="Invoice Number" fullWidth
+              value={form.invoice_number}
+              onChange={(e) => handleFormChange('invoice_number', e.target.value)} />
+          </Grid>
+          <Grid size={{ sm:6, md: 2 }}>
+            <TextField label="Payment Mode" select fullWidth
+              value={form.payment_mode}
+              onChange={(e) => handleFormChange('payment_mode', e.target.value)}>
+              <MenuItem value="Cash">Cash</MenuItem>
+              <MenuItem value="Credit">Credit</MenuItem>
+              <MenuItem value="Online">Online</MenuItem>
+              <MenuItem value="Card">Card</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ sm:6, md: 2 }}>
+            <TextField label="Purchased By" fullWidth
+              value={form.purchased_by}
+              onChange={(e) => handleFormChange('purchased_by', e.target.value)} />
+          </Grid>
+        </Grid>
 
-              <TextField label="Rate" type="number" inputProps={{ min: 0 }} fullWidth sx={{ mb: 2 }}
-                value={item.rate} onChange={(e) => handleItemChange(index, 'rate', Math.max(0, Number(e.target.value)))} />
+        {/* Section 2: Products */}
+        <Typography variant="h6" gutterBottom>Products</Typography>
+        {form.items.map((item, index) => {
+          const totalQty = item.item_locations.reduce((sum, l) => sum + l.quantity, 0);
+          const rowTotal = item.rate * totalQty;
 
-              {item.item_locations.map((loc, locIndex) => (
-                <Box key={locIndex} sx={{ display: 'flex', gap: 2, mb: 1 }}>
-                  <TextField label="Location" select value={loc.location} inputProps={{ min: 0 }}
-                    onChange={(e) => handleItemLocationChange(index, locIndex, 'location', Math.max(0, Number(e.target.value)))}
-                    sx={{ flex: 1 }}>
-                    {locations.map((l) => {
-                      // Disable if location already selected in the same item (except current locIndex)
-                      const isDisabled = item.item_locations.some(
-                        (il, i) => il.location === l.id && i !== locIndex
-                      );
-                      return (
-                        <MenuItem key={l.id} value={l.id} disabled={isDisabled}>
-                          {l.name}
-                        </MenuItem>
-                      );
-                    })}
-                  </TextField>
+          return (
+            <Grid  container spacing={2} key={index} alignItems="flex-start" >
+              <Grid size={{ sm:12, md: 9 }}>
+                <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <Grid size={{ sm:12, md: 4 }}>
+                    <TextField label="Product" select fullWidth
+                      value={item.product}
+                      onChange={(e) => handleItemChange(index, 'product', Number(e.target.value))}>
+                      {products.map((p) => (
+                        <MenuItem key={p.id} value={p.id}>{p.itemName}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
 
-                  <TextField label="Qty" type="number" value={loc.quantity}
-                    onChange={(e) => handleItemLocationChange(index, locIndex, 'quantity', Number(e.target.value))}
-                    sx={{ width: 100 }} />
+                  <Grid size={{ sm:4, md: 1.5 }}>
+                    <TextField label="Rate" type="number" fullWidth
+                      value={item.rate}
+                      onChange={(e) => handleItemChange(index, 'rate', Math.max(0, Number(e.target.value)))} />
+                  </Grid>
 
-                  <IconButton onClick={() => {
+                  {item.item_locations.map((loc, locIndex) => (
+                    <Grid size={{ sm:6, md: 4}} key={locIndex} sx={{ display: 'flex', gap: 1 }}>
+                      <TextField label="Location" select value={loc.location}
+                        onChange={(e) => handleItemLocationChange(index, locIndex, 'location', Number(e.target.value))}
+                        sx={{ flex: 1 }}>
+                        {locations.map((l) => {
+                          const isDisabled = item.item_locations.some((il, i) => il.location === l.id && i !== locIndex);
+                          return (
+                            <MenuItem key={l.id} value={l.id} disabled={isDisabled}>{l.name}</MenuItem>
+                          );
+                        })}
+                      </TextField>
+
+                      <TextField label="Qty" type="number" value={loc.quantity}
+                        onChange={(e) => handleItemLocationChange(index, locIndex, 'quantity', Number(e.target.value))}
+                        sx={{ width: 80 }} />
+
+                      <IconButton onClick={() => {
+                        const updated = [...form.items];
+                        updated[index].item_locations = updated[index].item_locations.filter((_, i) => i !== locIndex);
+                        setForm((f) => ({ ...f, items: updated }));
+                      }}>
+                        <Iconify icon="solar:trash-bin-trash-bold" />
+                      </IconButton>
+                    </Grid>
+                  ))}
+
+                  <Button variant="text" size="small" onClick={() => {
                     const updated = [...form.items];
-                    updated[index].item_locations = updated[index].item_locations.filter((_, i) => i !== locIndex);
+                    updated[index].item_locations.push({ location: '', quantity: 0 });
                     setForm((f) => ({ ...f, items: updated }));
                   }}>
-                    <Iconify icon="solar:trash-bin-trash-bold" />
-                  </IconButton>
-                </Box>
-              ))}
+                    + Stock
+                  </Button>
+                </Grid>
+              </Grid>
+              <Grid size={{ sm:12, md: 3 }}>
+                <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                  <Grid size={{ sm:6, md: 8 }}>
+                    <Box
+                      sx={{
+                        border: '1px solid #ccc',
+                        borderRadius: 2,
+                        padding: 1,
+                        textAlign: 'center',
+                        backgroundColor: '#f9f9f9',
+                      }}
+                    >
+                      <Typography variant="subtitle2">Product Total</Typography>
+                      <Typography fontWeight="bold">{rowTotal.toFixed(2)}</Typography>
+                    </Box>
+                  </Grid>
+                  <Grid size={{ sm:6, md: 4 }}>
+                    <IconButton onClick={() => {
+                      const updated = [...form.items];
+                      updated.splice(index, 1);
+                      setForm((f) => ({ ...f, items: updated }));
+                    }}>
+                      <Iconify icon="solar:trash-bin-trash-bold" />
+                    </IconButton>
+                  </Grid>
+                </Grid> 
+              </Grid>                                         
+            </Grid>
+          );
+        })}
 
-              <Button variant="outlined" size="small" onClick={() => {
-                const updated = [...form.items];
-                updated[index].item_locations.push({ location: '', quantity: 0 });
-                setForm((f) => ({ ...f, items: updated }));
-              }}>
-                Add Location
-              </Button>
-            </Box>
-          ))}
-
+        <Box textAlign="right" mb={3}>
           <Button variant="contained" onClick={() =>
             setForm((f) => ({
               ...f,
               items: [...f.items, { product: '', rate: 0, item_locations: [] }],
             }))
           }>
-            Add Item
+            + Add Item
           </Button>
         </Box>
 
-        <Box mt={2}>
-          <TextField
-            type="file"
-            fullWidth
-            inputProps={{ accept: 'image/*' }}
-            onChange={(e) => {
-              const target = e.target as HTMLInputElement;
-              const file = target.files?.[0];
-              if (file) handleFormChange('invoice_image', file);
-            }}
-          />
-          {form.invoice_image && (
-            <Box mt={1}>
-              <Typography variant="caption">Selected File: {form.invoice_image.name}</Typography>
+        {/* Section 3: Summary */}
+        <Typography variant="h6" gutterBottom>Summary</Typography>
+        <Grid container spacing={2} alignItems="center">
+          <Grid size={{ sm:6, md: 3 }}>
+            <TextField label="Discount" type="number" fullWidth
+              value={form.discount}
+              onChange={(e) => handleFormChange('discount', Number(e.target.value))} />
+          </Grid>
+          <Grid size={{ sm:6, md: 3 }}>
+            <Box
+              sx={{
+                border: '1px solid #ccc',
+                borderRadius: 2,
+                padding: 1,
+                textAlign: 'center',
+                backgroundColor: '#f9f9f9',
+              }}
+            >
+              <Typography variant="subtitle2">Grand Total</Typography>
+              <Typography variant="h6">{(Number(grandTotal) || 0).toFixed(2)}</Typography>
             </Box>
-          )}
-        </Box>
-
-        <Box mt={3}>
-          <Typography variant="h6">Grand Total: {grandTotal.toFixed(2)}</Typography>
-        </Box>
+          </Grid>
+        </Grid>
       </DialogContent>
 
       <DialogActions>

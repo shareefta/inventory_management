@@ -73,7 +73,11 @@ export function PurchaseTableRow({
         <TableCell>{row.invoice_number || '—'}</TableCell>
         <TableCell>{row.purchase_date}</TableCell>
         <TableCell>{(Number(row.discount) || 0).toFixed(2)}</TableCell>
-        <TableCell>{row.total_amount !== undefined && row.total_amount !== null ? row.total_amount.toFixed(2) : '—'}</TableCell>
+        <TableCell>
+          {typeof row.total_amount === 'number'
+            ? row.total_amount.toFixed(2)
+            : Number(row.total_amount || 0).toFixed(2)}
+        </TableCell>
         <TableCell>{row.payment_mode}</TableCell>
 
         <TableCell align="right">

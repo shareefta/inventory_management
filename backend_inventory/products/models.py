@@ -110,9 +110,22 @@ class Purchase(models.Model):
         ('Online', 'Online'),
     ]
 
+    PURCHASED_BY = [
+        ('AZIZIYAH_SHOP', 'AZIZIYAH_SHOP'),
+        ('ALWAB_SHOP', 'ALWAB_SHOP'),
+        ('MAIN_STORE', 'MAIN_STORE'),
+        ('JAMSHEER', 'JAMSHEER'),
+        ('FAWAS', 'FAWAS'),
+        ('IRSHAD', 'IRSHAD'),
+        ('MOOSA', 'MOOSA'),
+        ('FATHIH', 'FATHIH'),
+        ('FIROZ', 'FIROZ'),
+    ]
+
     supplier_name = models.CharField(max_length=100)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
     payment_mode = models.CharField(max_length=20, choices=PAYMENT_CHOICES, blank=True, null=True)
+    purchased_by = models.CharField(max_length=20, choices=PURCHASED_BY, blank=True, null=True)
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     purchase_date = models.DateField()
     total_amount = models.DecimalField(max_digits=15, decimal_places=2, editable=False, null=True, blank=True)

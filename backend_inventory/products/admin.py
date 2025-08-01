@@ -33,7 +33,7 @@ class PurchaseItemInline(nested_admin.NestedStackedInline):
 
 @admin.register(Purchase)
 class PurchaseAdmin(nested_admin.NestedModelAdmin):
-    list_display = ['supplier_name', 'invoice_number', 'purchase_date', 'payment_mode', 'total_amount', 'created_by']
+    list_display = ['supplier_name', 'invoice_number', 'purchase_date', 'payment_mode', 'total_amount', 'purchased_by', 'created_by']
     list_filter = ['purchase_date', 'supplier_name', 'payment_mode']
     search_fields = ['supplier_name', 'invoice_number']
     inlines = [PurchaseItemInline]

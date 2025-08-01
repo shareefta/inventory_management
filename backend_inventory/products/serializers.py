@@ -156,7 +156,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'supplier_name', 'contact_number',
             'invoice_number', 'invoice_image', 'purchase_date',
-            'payment_mode', 'discount', 'total_amount', 'items'
+            'payment_mode', 'discount', 'total_amount', 'purchased_by', 'items'
         ]
         read_only_fields = ['total_amount']
 
