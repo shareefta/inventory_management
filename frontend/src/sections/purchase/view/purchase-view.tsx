@@ -101,13 +101,13 @@ export function PurchaseView() {
 
   const headLabel = [
   { id: 'serial', label: '#', disableSorting: true },
+  { id: 'purchase_date', label: 'Purchase Date' },
   { id: 'supplier_name', label: 'Supplier' },
   { id: 'invoice_number', label: 'Invoice Number' },
-  { id: 'purchase_date', label: 'Purchase Date' },
   { id: 'discount', label: 'Discount' },
   { id: 'total_amount', label: 'Total Amount' },
   { id: 'payment_mode', label: 'Payment Mode' },
-  { id: 'created_at', label: 'Created At' },
+  { id: 'purchased_by', label: 'Purchased By'},
   { id: '', disableSorting: true },
 ];
 
@@ -120,6 +120,7 @@ export function PurchaseView() {
     'total_amount',
     'grand_total',
     'created_at',
+    'purchased_by'
   ]);
 
   return (
@@ -249,6 +250,7 @@ function useTable() {
     'discount',
     'total_amount',
     'created_at',
+    'purchased_by',
   ]);
 
   const onSort = useCallback(

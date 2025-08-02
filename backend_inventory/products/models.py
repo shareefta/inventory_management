@@ -53,8 +53,6 @@ class Product(models.Model):
     locations = models.ManyToManyField(Location, through='ProductLocation')
     
     rate = models.DecimalField(max_digits=10, decimal_places=2)
-    minimum_profit = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
-    selling_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     active = models.BooleanField(default=True)
 
@@ -65,16 +63,7 @@ class Product(models.Model):
 
     def total_quantity(self):
         return sum(loc.quantity for loc in self.product_locations.all())
-    
-    def clean(self):
-        super().clean()
         
-        if self.selling_price is not None and self.rate is not None and self.minimum_profit is not None:
-            if self.selling_price < (self.rate + self.minimum_profit):
-                raise ValidationError({
-                    'selling_price': f"Selling price must be at least rate + minimum profit: {self.rate + self.minimum_profit}"
-                })
-
     def save(self, *args, **kwargs):
         if not self.unique_id:
             self.unique_id = str(uuid.uuid4()).replace('-', '')[:13].upper()
@@ -128,7 +117,7 @@ class Purchase(models.Model):
     purchased_by = models.CharField(max_length=20, choices=PURCHASED_BY, blank=True, null=True)
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     purchase_date = models.DateField()
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2, editable=False, null=True, blank=True)
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     discount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     invoice_image = models.ImageField(upload_to=invoice_image_upload_path, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -144,21 +133,20 @@ class Purchase(models.Model):
                 total += item.rate * loc.quantity
         return total - self.discount
 
-    def save(self, *args, **kwargs):
-        creating = not self.pk
-        super().save(*args, **kwargs)
-        if not creating:
-            self.total_amount = self.calculate_total_amount()
-            super().save(update_fields=["total_amount"])
-
-
 class PurchaseItem(models.Model):
     purchase = models.ForeignKey(Purchase, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
+    product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, blank=True, null=True)
     rate = models.DecimalField(max_digits=10, decimal_places=2)
 
+    # Snapshot fields
+    product_name = models.CharField(max_length=200, blank=True, null=True)
+    product_barcode = models.CharField(max_length=64, blank=True, null=True)
+    product_brand = models.CharField(max_length=100, blank=True)
+    product_variant = models.CharField(max_length=200, blank=True)
+    serial_number = models.CharField(max_length=20, blank=True)
+
     def __str__(self):
-        return f"{self.product.item_name} - {self.purchase}"
+        return f"{self.product_name} - {self.purchase}"
 
     def get_total_quantity(self):
         return sum(loc.quantity for loc in self.item_locations.all())
@@ -167,13 +155,19 @@ class PurchaseItem(models.Model):
         return self.get_total_quantity() * self.rate
 
     def save(self, *args, **kwargs):
+        if self.product and not self.pk:
+            self.product_name = self.product.item_name
+            self.product_barcode = self.product.unique_id
+            self.product_brand = self.product.brand
+            self.product_variant = self.product.variants
+            self.serial_number = self.product.serial_number
+
         super().save(*args, **kwargs)
 
         # Update product rate if needed
-        if self.rate != self.product.rate:
+        if self.product and self.rate != self.product.rate:
             self.product.rate = self.rate
             self.product.save()
-
 
 class PurchaseItemLocation(models.Model):
     purchase_item = models.ForeignKey(PurchaseItem, on_delete=models.CASCADE, related_name='item_locations')

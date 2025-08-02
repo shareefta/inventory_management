@@ -173,9 +173,23 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
             </TextField>
           </Grid>
           <Grid size={{ sm:6, md: 2 }}>
-            <TextField label="Purchased By" fullWidth
+            <TextField
+              label="Purchased By"
+              select
+              fullWidth
               value={form.purchased_by}
-              onChange={(e) => handleFormChange('purchased_by', e.target.value)} />
+              onChange={(e) => handleFormChange('purchased_by', e.target.value)}
+            >
+              <MenuItem value="AZIZIYAH_SHOP">AZIZIYAH SHOP</MenuItem>
+              <MenuItem value="ALWAB_SHOP">ALWAB SHOP</MenuItem>
+              <MenuItem value="MAIN_STORE">MAIN STORE</MenuItem>
+              <MenuItem value="JAMSHEER">JAMSHEER</MenuItem>
+              <MenuItem value="FAWAS">FAWAS</MenuItem>
+              <MenuItem value="IRSHAD">IRSHAD</MenuItem>
+              <MenuItem value="MOOSA">MOOSA</MenuItem>
+              <MenuItem value="FATHIH">FATHIH</MenuItem>
+              <MenuItem value="FIROZ">FIROZ</MenuItem>
+            </TextField>
           </Grid>
         </Grid>
 

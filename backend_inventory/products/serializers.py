@@ -6,6 +6,7 @@ from django.db.models import Sum
 from rest_framework.validators import UniqueValidator
 import uuid
 from rest_framework.exceptions import ValidationError
+from django.db import transaction
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,24 +48,13 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'unique_id', 'item_name', 'brand', 'serial_number', 'variants',
             'category', 'category_id', 'rate', 'active', 'image', 'created_at', 
-            'locations', 'total_quantity', 'description','minimum_profit', 'selling_price'
+            'locations', 'total_quantity', 'description'
             ]
 
         read_only_fields = ['id', 'unique_id', 'created_at']
         
     def get_total_quantity(self, obj):
         return obj.product_locations.aggregate(total=Sum('quantity'))['total'] or 0
-    
-    def validate(self, attrs):
-        rate = attrs.get('rate', getattr(self.instance, 'rate', 0))
-        minimum_profit = attrs.get('minimum_profit', getattr(self.instance, 'minimum_profit', 0))
-        selling_price = attrs.get('selling_price', getattr(self.instance, 'selling_price', 0))
-
-        if selling_price is not None and selling_price < (rate + minimum_profit):
-            raise serializers.ValidationError({
-                'selling_price': f'Selling price must be at least rate + minimum profit: {rate + minimum_profit}'
-            })
-        return attrs
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -135,7 +125,24 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PurchaseItem
-        fields = ['id', 'product', 'rate', 'item_locations']
+        fields = [
+            'id',
+            'product',
+            'rate',
+            'product_name',
+            'product_barcode',
+            'product_brand',
+            'product_variant',
+            'serial_number',
+            'item_locations',
+        ]
+        read_only_fields = [
+            'product_name',
+            'product_barcode',
+            'product_brand',
+            'product_variant',
+            'serial_number',
+        ]
     
     def validate_item_locations(self, value):
         seen_locations = set()
@@ -171,6 +178,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'items': 'Invalid JSON format'})
         return super().to_internal_value(data)
 
+    @transaction.atomic
     def create(self, validated_data):
         request = self.context.get('request')
         items_data = validated_data.pop('items', [])
@@ -179,6 +187,16 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
         for item_data in items_data:
             locs_data = item_data.pop('item_locations', [])
+
+            # Fetch product instance for backup
+            product = item_data.get('product')
+            if product:
+                item_data['product_name'] = product.item_name
+                item_data['product_barcode'] = product.unique_id
+                item_data['product_brand'] = product.brand or ''
+                item_data['product_variant'] = product.variants or ''
+                item_data['serial_number'] = product.serial_number or ''
+
             item = PurchaseItem.objects.create(purchase=purchase, **item_data)
 
             for loc_data in locs_data:
@@ -188,6 +206,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         purchase.save(update_fields=["total_amount"])
         return purchase
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
 
@@ -195,6 +214,15 @@ class PurchaseSerializer(serializers.ModelSerializer):
             instance.items.all().delete()
             for item_data in items_data:
                 locs_data = item_data.pop('item_locations', [])
+
+                product = item_data.get('product')
+                if product:
+                    item_data['product_name'] = product.item_name
+                    item_data['product_barcode'] = product.unique_id
+                    item_data['product_brand'] = product.brand or ''
+                    item_data['product_variant'] = product.variants or ''
+                    item_data['serial_number'] = product.serial_number or ''
+
                 item = PurchaseItem.objects.create(purchase=instance, **item_data)
 
                 for loc_data in locs_data:
@@ -211,3 +239,33 @@ class PurchaseSerializer(serializers.ModelSerializer):
         instance.total_amount = instance.calculate_total_amount()
         instance.save()
         return instance
+    
+class PurchaseItemLocationReadSerializer(serializers.ModelSerializer):
+    location_name = serializers.CharField(source='location.name', read_only=True)
+
+    class Meta:
+        model = PurchaseItemLocation
+        fields = ['id', 'location', 'location_name', 'quantity']
+
+class PurchaseItemReadSerializer(serializers.ModelSerializer):
+    item_locations = PurchaseItemLocationReadSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PurchaseItem
+        fields = [
+            'id', 'product_name', 'product_barcode', 'product_brand', 'serial_number',
+            'product_variant', 'rate', 'item_locations'
+        ]
+
+class PurchaseDetailSerializer(serializers.ModelSerializer):
+    items = PurchaseItemReadSerializer(many=True, read_only=True)
+    created_by = serializers.StringRelatedField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = Purchase
+        fields = [
+            'id', 'supplier_name', 'invoice_number', 'purchase_date',
+            'payment_mode', 'discount', 'total_amount', 'created_by', 'created_at',
+            'items'
+        ]

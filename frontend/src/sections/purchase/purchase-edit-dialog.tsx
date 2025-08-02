@@ -121,6 +121,7 @@ export default function PurchaseEditDialog({ open, purchase, onClose, onSuccess 
       purchase_date: formData.purchase_date,
       discount: formData.discount,
       payment_mode: formData.payment_mode as 'Cash' | 'Credit' | 'Card' | 'Online',
+      purchased_by: formData.purchased_by as 'AZIZIYAH_SHOP' | 'ALWAB_SHOP' | 'MAIN_STORE' | 'JAMSHEER' | 'FAWAS' | 'IRSHAD' | 'MOOSA' | 'FATHIH' | 'FIROZ',
       items: cleanedItems,
       // omit total_amount, it should be computed server-side
     };

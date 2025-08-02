@@ -133,7 +133,6 @@ export function ProductView() {
     { id: 'variants', label: 'Variants' },
     { id: 'category', label: 'Category' },
     { id: 'rate', label: 'Rate' },
-    { id: 'sellingPrice', label: 'Selling Price' },
     { id: 'total_quantity', label: 'Stock' },
     { id: 'active', label: 'Active', align: 'center' },
     { id: '', disableSorting: true },

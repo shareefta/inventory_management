@@ -97,7 +97,6 @@ export default function ProductEditDialog({
     form.append('serial_number', formData.serialNumber);
     form.append('variants', formData.variants);
     form.append('rate', formData.rate.toString());
-    form.append('selling_price', formData.sellingPrice.toString());
     form.append('active', formData.active.toString());
     form.append('description', formData.description || '');
 
@@ -138,7 +137,6 @@ export default function ProductEditDialog({
         <TextField label="Serial Number" value={formData.serialNumber} onChange={(e) => handleFieldChange('serialNumber', e.target.value)} fullWidth />
         <TextField label="Variants" value={formData.variants} onChange={(e) => handleFieldChange('variants', e.target.value)} fullWidth />
         <TextField label="Rate" type="number" value={formData.rate} onChange={(e) => handleFieldChange('rate', Number(e.target.value))} fullWidth />
-        <TextField label="Selling Price" type="number" value={formData.sellingPrice} onChange={(e) => handleFieldChange('sellingPrice', Number(e.target.value))} fullWidth />
 
         <Select fullWidth value={formData.category} onChange={(e) => handleFieldChange('category', e.target.value)}>
           {categories.map((cat) => (

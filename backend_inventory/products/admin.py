@@ -9,7 +9,7 @@ class ProductLocationInline(admin.TabularInline):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     inlines = [ProductLocationInline]
-    list_display = ('item_name', 'unique_id', 'total_quantity', 'rate', 'minimum_profit', 'selling_price', 'active')
+    list_display = ('item_name', 'unique_id', 'total_quantity', 'rate', 'active')
     search_fields = ('item_name', 'unique_id', 'brand', 'serial_number')
 
 @admin.register(Location)

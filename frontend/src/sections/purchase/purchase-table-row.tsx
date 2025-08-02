@@ -22,12 +22,13 @@ import WarningIcon from '@mui/icons-material/Warning';
 import DialogContent from '@mui/material/DialogContent';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
-import { updatePurchase } from 'src/api/purchases';
+import { getPurchaseDetails } from 'src/api/purchases';
 
-import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 
 import PurchaseEditDialog from 'src/sections/purchase/purchase-edit-dialog'; 
+
+import PurchaseDetailsDialog from './purchase-details-dialog';
 
 // ----------------------------------------------------------------------
 type PurchaseTableRowProps = {
@@ -51,6 +52,9 @@ export function PurchaseTableRow({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [purchaseToEdit, setPurchaseToEdit] = useState<PurchaseProps | null>(null);
   const { enqueueSnackbar } = useSnackbar();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [purchaseDetails, setPurchaseDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   const handleOpenPopover = (event: React.MouseEvent<HTMLButtonElement>) => {
     setOpenPopover(event.currentTarget);
@@ -68,10 +72,29 @@ export function PurchaseTableRow({
         </TableCell>
 
         <TableCell>{serial}</TableCell>
-
-        <TableCell>{row.supplier_name}</TableCell>
-        <TableCell>{row.invoice_number || '—'}</TableCell>
         <TableCell>{row.purchase_date}</TableCell>
+        <TableCell>
+          <Button
+            variant="text"
+            color="primary"
+            onClick={async () => {
+              setLoadingDetails(true);
+              try {
+                const details = await getPurchaseDetails(row.id!);
+                setPurchaseDetails(details);
+                setDetailsOpen(true);
+              } catch (error) {
+                enqueueSnackbar('Failed to load purchase details', { variant: 'error' });
+              } finally {
+                setLoadingDetails(false);
+              }
+            }}
+            sx={{ textTransform: 'none' }}
+          >
+            {row.supplier_name}
+          </Button>
+        </TableCell>
+        <TableCell>{row.invoice_number || '—'}</TableCell>
         <TableCell>{(Number(row.discount) || 0).toFixed(2)}</TableCell>
         <TableCell>
           {typeof row.total_amount === 'number'
@@ -79,7 +102,7 @@ export function PurchaseTableRow({
             : Number(row.total_amount || 0).toFixed(2)}
         </TableCell>
         <TableCell>{row.payment_mode}</TableCell>
-
+        <TableCell>{row.purchased_by}</TableCell>
         <TableCell align="right">
           <IconButton onClick={handleOpenPopover}>
             <Iconify icon="eva:more-vertical-fill" />
@@ -134,6 +157,12 @@ export function PurchaseTableRow({
           onEdit?.(updated);
         }}
       />
+      <PurchaseDetailsDialog
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        data={purchaseDetails}
+        loading={loadingDetails}
+      />      
     </>
   );
 }

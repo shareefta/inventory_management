@@ -48,7 +48,6 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
     category_id: '',
     locations: [] as { location_id: string | number; quantity: number }[],
     rate: '',
-    selling_price: '',
     active: true,
     image: null as File | null,
     description: '',
@@ -76,25 +75,10 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  // const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //   if (e.target.files?.[0]) setForm((f) => ({ ...f, image: e.target.files![0] }));
-  // };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    try {
-      const options = {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1024,
-        useWebWorker: true,
-      };
-      const compressedFile = await imageCompression(file, options);
-      setForm((f) => ({ ...f, image: compressedFile }));
-    } catch (err) {
-      console.error('❌ Image compression failed:', err);
-    }
+    setForm((f) => ({ ...f, image: file }));
   };
 
   const handleSubmit = async () => {
@@ -114,6 +98,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
             data.append('category_id', Number(val).toString());
           } else if (key === 'description') {
             data.append('description', val as string);
+          } else if (key === 'image' && val instanceof File) {
+            data.append('image', val, val.name); // ✅ preserve filename
           } else {
             data.append(key, val as string | Blob);
           }
@@ -147,7 +133,6 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
       active: true,
       image: null,
       description: '',
-      selling_price: '',
     });
     setBarcode('');
   };
@@ -164,7 +149,6 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
         serial_number: product.serialNumber || '',
         variants: product.variants || '',
         rate: product.rate !== undefined && product.rate !== null ? String(product.rate) : '',
-        selling_price: product.sellingPrice !== undefined && product.sellingPrice !== null ? String(product.sellingPrice) : '',
         description: product.description || '',
         category_id: product.category?.toString() || '',
         image: null,
@@ -342,17 +326,6 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
         />
 
         <TextField
-          label="Selling Price"
-          name="selling_price"
-          value={form.selling_price}
-          onChange={handleChange}
-          type="number"
-          fullWidth
-          margin="normal"
-          required
-        />
-
-        <TextField
           label="Description"
           name="description"
           value={form.description}
@@ -371,7 +344,6 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
         <Box mt={2}>
           <input
             accept="image/*"
-            capture="environment"
             id="image-upload"
             type="file"
             onChange={handleFileChange}

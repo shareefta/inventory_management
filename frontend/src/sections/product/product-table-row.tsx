@@ -54,8 +54,6 @@ export type ProductProps = {
   variants: string;
   category: string;
   rate: number;
-  sellingPrice: number;
-  minimumProfit: number;
   active: boolean;
   image?: string | File;
   locations: ProductLocationEntry[];
@@ -148,18 +146,6 @@ export function ProductTableRow({
 
   const handleSave = async () => {
     const rate = Number(updatedProduct.rate);
-    const sellingPrice = Number(updatedProduct.sellingPrice);
-    const minimumProfit = Number(updatedProduct.minimumProfit ?? 10);
-
-    const minRequired = rate + minimumProfit;
-
-    if (sellingPrice < minRequired) {
-      enqueueSnackbar(
-        `❌ Selling Price must be at least Rate + Minimum Profit (₹${minRequired.toFixed(2)})`,
-        { variant: 'error' }
-      );
-      return;
-    }
 
     try {
       // 🔄 Convert category and location name to ID
@@ -191,7 +177,6 @@ export function ProductTableRow({
       formData.append('variants', updatedProduct.variants);
       formData.append('category_id', String(categoryId));
       formData.append('rate', String(updatedProduct.rate));
-      formData.append('selling_price', String(updatedProduct.sellingPrice));
       formData.append('locations', JSON.stringify(productLocationData));
       formData.append('active', String(updatedProduct.active));
       formData.append('description', updatedProduct.description || '');
@@ -279,15 +264,6 @@ export function ProductTableRow({
         <TableCell> {row.category} </TableCell>
           
         <TableCell> {row.rate} </TableCell>
-
-        <TableCell>
-          {row.sellingPrice}
-          {(row.sellingPrice < row.rate + (row.minimumProfit ?? 10)) && (
-            <Tooltip title="Selling price is below required minimum" arrow>
-              <WarningIcon fontSize="small" color="error" style={{ marginLeft: 4 }} />
-            </Tooltip>
-          )}
-        </TableCell>
 
         <TableCell>
           <>

@@ -27,8 +27,6 @@ export async function getProducts(): Promise<ProductProps[]> {
     active: item.active,
     image: item.image,
     description: item.description,
-    sellingPrice: item.selling_price,
-    minimumProfit: item.minimum_profit,
   }));
 }
 
@@ -57,8 +55,6 @@ export async function getProductByBarcode(barcode: string): Promise<ProductProps
     active: item.active,
     image: item.image,
     description: item.description,
-    sellingPrice: item.selling_price,
-    minimumProfit: item.minimum_profit,
   };
 }
 

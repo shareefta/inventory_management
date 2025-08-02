@@ -22,6 +22,7 @@ export type PurchaseProps = {
   invoice_image?: string | File | null;
   purchase_date: string;
   payment_mode: 'Cash' | 'Credit' | 'Card' | 'Online';
+  purchased_by: 'AZIZIYAH_SHOP' | 'ALWAB_SHOP' | 'MAIN_STORE' | 'JAMSHEER' | 'FAWAS' | 'IRSHAD' | 'MOOSA' | 'FATHIH' | 'FIROZ';
   discount: number;
   total_amount?: number;
   items: PurchaseItem[];
@@ -76,4 +77,16 @@ export async function deletePurchase(id: number) {
   return axios.delete(`${BASE_URL}${id}/`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+}
+
+export async function getPurchaseDetails(id: number): Promise<any> {
+  const token = getToken();
+
+  const res = await axios.get(`${BASE_URL}${id}/details/`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return res.data;
 }
