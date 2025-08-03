@@ -146,12 +146,12 @@ export function PurchaseTableRow({
       {/* Edit Dialog */}
       <PurchaseEditDialog
         open={editDialogOpen}
-        purchase={purchaseToEdit}
+        purchaseId={purchaseToEdit?.id ?? 0}
         onClose={() => {
           setEditDialogOpen(false);
           setPurchaseToEdit(null);
         }}
-        onSuccess={(updated: PurchaseProps) => {
+        onSuccess={(updated) => {
           setEditDialogOpen(false);
           setPurchaseToEdit(null);
           onEdit?.(updated);

@@ -1,10 +1,10 @@
 import type { LocationEntry, CategoryEntry } from 'src/sections/product/product-table-row';
 import type { ProductProps, ProductLocationEntry } from 'src/sections/product/product-table-row';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button,
+  Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions, Button,
   TextField, MenuItem, Select, IconButton, Box, Typography,
   Avatar, Switch, FormControlLabel
 } from '@mui/material';
@@ -34,6 +34,7 @@ export default function ProductEditDialog({
 }: ProductEditDialogProps) {
   const [formData, setFormData] = useState<ProductProps | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const lastLocationInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!product) return;
@@ -135,14 +136,28 @@ export default function ProductEditDialog({
         <TextField label="Item Name" value={formData.itemName} onChange={(e) => handleFieldChange('itemName', e.target.value)} fullWidth />
         <TextField label="Brand" value={formData.brand} onChange={(e) => handleFieldChange('brand', e.target.value)} fullWidth />
         <TextField label="Serial Number" value={formData.serialNumber} onChange={(e) => handleFieldChange('serialNumber', e.target.value)} fullWidth />
-        <TextField label="Variants" value={formData.variants} onChange={(e) => handleFieldChange('variants', e.target.value)} fullWidth />
-        <TextField label="Rate" type="number" value={formData.rate} onChange={(e) => handleFieldChange('rate', Number(e.target.value))} fullWidth />
+        <TextField label="Variants" value={formData.variants} onChange={(e) => handleFieldChange('variants', e.target.value)} fullWidth />        
+        <TextField
+          label="Rate"
+          type="number"
+          value={formData.rate}
+          onChange={(e) => handleFieldChange('rate', Number(e.target.value))}
+          fullWidth
+          onWheel={(e) => e.target instanceof HTMLElement && e.target.blur()}
+        />
 
-        <Select fullWidth value={formData.category} onChange={(e) => handleFieldChange('category', e.target.value)}>
-          {categories.map((cat) => (
-            <MenuItem key={cat.id} value={cat.name}>{cat.name}</MenuItem>
-          ))}
-        </Select>
+        <Autocomplete
+          fullWidth
+          options={categories}
+          getOptionLabel={(option) => option.name}
+          value={categories.find((cat) => cat.name === formData.category) || null}
+          onChange={(_, newValue) =>
+            handleFieldChange('category', newValue ? newValue.name : '')
+          }
+          renderInput={(params) => (
+            <TextField {...params} label="Category" fullWidth />
+          )}
+        />
 
         <TextField label="Description" value={formData.description} onChange={(e) => handleFieldChange('description', e.target.value)} fullWidth multiline minRows={3} />
 
@@ -162,16 +177,67 @@ export default function ProductEditDialog({
         <Typography variant="subtitle1" mt={2}>Locations</Typography>
         {formData.locations.map((entry, index) => (
           <Box key={index} display="flex" gap={1} alignItems="center">
-            <Select size="small" value={entry.location.id} onChange={(e) => handleLocationChange(index, 'location', e.target.value)} sx={{ flex: 1 }}>
-              {locations.map((loc) => (
-                <MenuItem key={loc.id} value={loc.id}>{loc.name}</MenuItem>
-              ))}
-            </Select>
-            <TextField size="small" type="number" value={entry.quantity} onChange={(e) => handleLocationChange(index, 'quantity', e.target.value)} sx={{ width: 100 }} />
-            <IconButton color="error" onClick={() => handleRemoveLocation(index)}><Iconify icon="solar:trash-bin-trash-bold" /></IconButton>
+            <Autocomplete
+              fullWidth
+              size="small"
+              options={locations}
+              getOptionLabel={(option) => option.name}
+              value={locations.find((loc) => loc.id === entry.location.id) || null}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              onChange={(_, newValue) => {
+                handleLocationChange(index, 'location', newValue ? newValue.id : '');
+              }}
+              renderOption={(props, option) => {
+                const isUsed = formData.locations.some(
+                  (locEntry, i) => i !== index && locEntry.location.id === option.id
+                );
+                return (
+                  <li
+                    {...props}
+                    style={{
+                      opacity: isUsed ? 0.5 : 1,
+                      pointerEvents: isUsed ? 'none' : 'auto',
+                    }}
+                  >
+                    {option.name}
+                  </li>
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Location"
+                  inputRef={index === formData.locations.length - 1 ? lastLocationInputRef : null}
+                />
+              )}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="Qty"
+              value={entry.quantity}
+              onChange={(e) => handleLocationChange(index, 'quantity', e.target.value)}
+              sx={{ width: 100 }}
+              onWheel={(e) => (e.target as HTMLElement).blur()}
+            />
+            <IconButton color="error" onClick={() => handleRemoveLocation(index)}>
+              <Iconify icon="solar:trash-bin-trash-bold" />
+            </IconButton>
           </Box>
         ))}
-        <Button size="small" variant="outlined" onClick={handleAddLocation}>Add Location</Button>
+
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => {
+            handleAddLocation();
+            setTimeout(() => {
+              lastLocationInputRef.current?.focus();
+            }, 100);
+          }}
+        >
+          Add Location
+        </Button>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} variant="outlined">Cancel</Button>

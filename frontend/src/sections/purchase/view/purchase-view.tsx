@@ -39,6 +39,8 @@ export function PurchaseView() {
   const [openNewPurchase, setOpenNewPurchase] = useState(false);
   const [purchaseToEdit, setPurchaseToEdit] = useState<PurchaseProps | null>(null);
   const [editPurchaseDialogOpen, setEditPurchaseDialogOpen] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [locations, setLocations] = useState([]);
 
   const fetchPurchases = useCallback(() => {
     setLoading(true);
@@ -126,7 +128,7 @@ export function PurchaseView() {
   return (
     <DashboardContent maxWidth="xl">
       <Grid container spacing={3}>
-        <Grid size={{ sm: 12 }}>
+        <Grid size={{ md: 12 }}>
           <Box sx={{ mb: 5, display: 'flex', alignItems: 'center' }}>
             <Typography variant="h4" sx={{ flexGrow: 1 }}>
               Purchases
@@ -150,7 +152,7 @@ export function PurchaseView() {
           {purchaseToEdit && (
             <PurchaseEditDialog
               open={editPurchaseDialogOpen}
-              purchase={purchaseToEdit}
+              purchaseId={purchaseToEdit.id!}
               onClose={() => {
                 setEditPurchaseDialogOpen(false);
                 setPurchaseToEdit(null);

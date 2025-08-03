@@ -1,261 +1,411 @@
-import type { PurchaseProps, PurchaseItem, PurchaseItemLocation } from 'src/api/purchases';
+import { useEffect, useState, useRef } from 'react';
 
-import { useEffect, useState } from 'react';
-
+import Grid from '@mui/material/Grid';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, Box, Avatar, Typography, Select, MenuItem
+  Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, TextField, CircularProgress, Box, IconButton, Typography
 } from '@mui/material';
 
-import { updatePurchase } from 'src/api/purchases';
+import { getProducts, getLocations } from 'src/api/products';
+import { PurchaseProps, updatePurchase, getPurchase } from 'src/api/purchases';
 
 import { Iconify } from 'src/components/iconify';
 
+import { ProductProps } from '../product/product-table-row';
+
+type Location = { id: number; name: string };
+
 type PurchaseEditDialogProps = {
   open: boolean;
-  purchase: PurchaseProps | null;
   onClose: () => void;
-  onSuccess?: (updated: PurchaseProps) => void;
+  onSuccess: (updated: PurchaseProps) => void;
+  purchaseId: number;
 };
 
-export default function PurchaseEditDialog({ open, purchase, onClose, onSuccess }: PurchaseEditDialogProps) {
-  const [formData, setFormData] = useState<PurchaseProps | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseId }: PurchaseEditDialogProps) {
+  const [products, setProducts] = useState<ProductProps[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
 
-  // Helper to recalc total amount
-  const recalculateTotal = (items: PurchaseItem[], discount: number) => {
-    const total = items.reduce((sum, item) => {
-      const qtySum = item.item_locations.reduce((q, loc) => q + loc.quantity, 0);
-      return sum + qtySum * item.rate;
-    }, 0);
-    return Math.max(0, total - discount);
-  };
+  const productRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const locationRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
+  const [form, setForm] = useState({
+    supplier_name: '',
+    invoice_number: '',
+    purchase_date: '',
+    payment_mode: '',
+    purchased_by: '',
+    discount: 0,
+    invoice_image: null as File | null,
+    items: [] as {
+      id?: number;  // for existing item IDs
+      product: ProductProps | '';
+      rate: number;
+      item_locations: { id?: number; location: number | ''; quantity: number }[];
+    }[],
+  });
 
   useEffect(() => {
-    let revoke: (() => void) | null = null;
+    if (!open) return;
 
-    if (purchase) {
-      // Calculate initial total amount
-      const totalAmount = recalculateTotal(purchase.items, purchase.discount);
+    setLoadingData(true);
+    Promise.all([getProducts(), getLocations(), getPurchase(purchaseId)])
+      .then(([prods, locs, purchase]) => {
+        setProducts(prods);
+        setLocations(locs);
 
-      setFormData({
-        ...purchase,
-        total_amount: totalAmount,
-      });
+        // Map purchase data to form shape with '' for empty selections
+        setForm({
+          supplier_name: purchase.supplier_name,
+          invoice_number: purchase.invoice_number,
+          purchase_date: purchase.purchase_date,
+          payment_mode: purchase.payment_mode,
+          purchased_by: purchase.purchased_by,
+          discount: purchase.discount,
+          invoice_image: null,
+          items: purchase.items.map((item: any) => ({
+            id: item.id,
+            product: item.product.id ?? '' ,
+            rate: item.rate,
+            item_locations: item.item_locations.map((loc: any) => ({
+              id: loc.id,
+              location: loc.location.id ?? '',
+              quantity: loc.quantity,
+            })),
+          })),
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoadingData(false));
+  }, [open, purchaseId]);
 
-      if (purchase.invoice_image instanceof File) {
-        const url = URL.createObjectURL(purchase.invoice_image);
-        setPreviewUrl(url);
-        revoke = () => URL.revokeObjectURL(url);
-        window.addEventListener('beforeunload', revoke);
-      } else if (typeof purchase.invoice_image === 'string') {
-        setPreviewUrl(purchase.invoice_image);
-      }
-    }
-
-    return () => {
-      if (revoke) {
-        window.removeEventListener('beforeunload', revoke);
-        revoke();
-      }
-    };
-  }, [purchase]);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData((prev) => prev && ({ ...prev, invoice_image: file }));
-      setPreviewUrl(URL.createObjectURL(file));
-    }
+  const resetForm = () => {
+    setForm({
+      supplier_name: '',
+      invoice_number: '',
+      purchase_date: '',
+      payment_mode: '',
+      purchased_by: '',
+      discount: 0,
+      invoice_image: null,
+      items: [],
+    });
   };
 
-  const handleChange = (field: keyof PurchaseProps, value: any) => {
-    if (!formData) return;
+  const grandTotal = form.items.reduce((acc, item) => {
+    const qty = item.item_locations.reduce((sum, l) => sum + l.quantity, 0);
+    return acc + item.rate * qty;
+  }, 0) - form.discount;
 
-    const newFormData = { ...formData, [field]: value };
+  const handleFormChange = (field: string, value: any) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
-    // If discount changed, recalc total_amount
-    if (field === 'discount') {
-      const total = recalculateTotal(newFormData.items, value);
-      newFormData.total_amount = total;
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const updated = [...form.items];
+    (updated[index] as any)[field] = value;
+    setForm((f) => ({ ...f, items: updated }));
+  };
+
+  const handleItemLocationChange = (itemIndex: number, locIndex: number, field: string, value: any) => {
+    const updated = [...form.items];
+    if (field === 'location' || field === 'quantity') {
+      updated[itemIndex].item_locations[locIndex][field] = value;
     }
-
-    setFormData(newFormData);
-  };
-
-  const handleItemChange = (index: number, field: keyof PurchaseItem, value: any) => {
-    if (!formData) return;
-    const updatedItems = [...formData.items];
-    (updatedItems[index] as any)[field] = value;
-
-    const total = recalculateTotal(updatedItems, formData.discount);
-    setFormData({ ...formData, items: updatedItems, total_amount: total });
-  };
-
-  const handleItemLocationChange = (itemIndex: number, locIndex: number, field: keyof PurchaseItemLocation, value: any) => {
-    if (!formData) return;
-    const updatedItems = [...formData.items];
-    const updatedLocs = [...updatedItems[itemIndex].item_locations];
-    (updatedLocs[locIndex] as any)[field] = value;
-    updatedItems[itemIndex].item_locations = updatedLocs;
-
-    const total = recalculateTotal(updatedItems, formData.discount);
-    setFormData({ ...formData, items: updatedItems, total_amount: total });
+    setForm((f) => ({ ...f, items: updated }));
   };
 
   const handleSubmit = async () => {
-    if (!formData) return;
-
-    const cleanedItems = formData.items.map(item => ({
-      product: typeof item.product === 'object' ? (item.product as { id: number }).id : item.product,
-      rate: item.rate,
-      item_locations: item.item_locations.map(loc => ({
-        location: typeof loc.location === 'object' ? (loc.location as { id: number }).id : loc.location,
-        quantity: loc.quantity,
-      })),
-    }));
-
-    const payload = {
-      supplier_name: formData.supplier_name,
-      invoice_number: formData.invoice_number || '',
-      purchase_date: formData.purchase_date,
-      discount: formData.discount,
-      payment_mode: formData.payment_mode as 'Cash' | 'Credit' | 'Card' | 'Online',
-      purchased_by: formData.purchased_by as 'AZIZIYAH_SHOP' | 'ALWAB_SHOP' | 'MAIN_STORE' | 'JAMSHEER' | 'FAWAS' | 'IRSHAD' | 'MOOSA' | 'FATHIH' | 'FIROZ',
-      items: cleanedItems,
-      // omit total_amount, it should be computed server-side
-    };
+    setLoading(true);
 
     try {
-      const updated = await updatePurchase(formData.id!, payload);
-      onSuccess?.(updated);
+      // Prepare items, convert '' to numbers and filter out empty entries
+      const cleanedItems = form.items
+        .filter(item => item.product !== '')
+        .map(item => ({
+          id: item.id,
+          product: Number(item.product),
+          rate: item.rate,
+          item_locations: item.item_locations
+            .filter(loc => loc.location !== '')
+            .map(loc => ({
+              id: loc.id,
+              location: Number(loc.location),
+              quantity: loc.quantity,
+            })),
+        }));
+
+      const payload = {
+        supplier_name: form.supplier_name,
+        invoice_number: form.invoice_number,
+        purchase_date: form.purchase_date,
+        discount: form.discount,
+        payment_mode: form.payment_mode as 'Cash' | 'Credit' | 'Card' | 'Online',
+        purchased_by: form.purchased_by as 'AZIZIYAH_SHOP' | 'ALWAB_SHOP' | 'MAIN_STORE' | 'JAMSHEER' | 'FAWAS' | 'IRSHAD' | 'MOOSA' | 'FATHIH' | 'FIROZ',
+        total_amount: grandTotal,
+        items: cleanedItems,
+      };
+
+      const updated = await updatePurchase(purchaseId, payload);
+      onSuccess(updated);
       onClose();
-    } catch (error) {
-      console.error('Update failed:', error);
-      alert('Failed to update purchase.');
+      resetForm();
+    } catch (error: any) {
+      console.error('❌ Purchase update failed:', error);
+      if (error.response?.data) {
+        console.error('📩 Server response:', error.response.data);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (!formData) return null;
+  const isFormValid = form.items.length > 0 && form.items.every(
+    item => item.product !== '' && item.item_locations.length > 0
+  );
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle>Edit Purchase</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField
-          label="Supplier Name"
-          value={formData.supplier_name}
-          onChange={(e) => handleChange('supplier_name', e.target.value)}
-          fullWidth
-        />
-
-        <TextField
-          label="Invoice Number"
-          value={formData.invoice_number ?? ''}
-          onChange={(e) => handleChange('invoice_number', e.target.value)}
-          fullWidth
-        />
-
-        <TextField
-          label="Purchase Date"
-          type="date"
-          value={formData.purchase_date}
-          onChange={(e) => handleChange('purchase_date', e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          fullWidth
-        />
-
-        <Select
-          value={formData.payment_mode}
-          onChange={(e) => handleChange('payment_mode', e.target.value)}
-          fullWidth
-        >
-          <MenuItem value="Cash">Cash</MenuItem>
-          <MenuItem value="Credit">Credit</MenuItem>
-          <MenuItem value="Card">Card</MenuItem>
-          <MenuItem value="Online">Online</MenuItem>
-        </Select>
-
-        <TextField
-          label="Discount"
-          type="number"
-          value={formData.discount}
-          onChange={(e) => handleChange('discount', parseFloat(e.target.value) || 0)}
-          fullWidth
-        />
-
-        <TextField
-          label="Total Amount"
-          type="number"
-          value={formData.total_amount ?? 0}
-          InputProps={{ readOnly: true }}
-          fullWidth
-        />
-
-        <Box display="flex" alignItems="center" gap={2}>
-          <Avatar
-            src={previewUrl || '/assets/images/fallback-image.png'}
-            variant="rounded"
-            sx={{ width: 64, height: 64 }}
-          />
-          <Button variant="outlined" component="label">
-            Upload Image
-            <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
-          </Button>
-        </Box>
-
-        <Typography variant="h6">Items</Typography>
-        {formData.items.map((item, idx) => (
-          <Box key={idx} p={2} border="1px dashed grey" borderRadius={2} mb={2}>
-            <TextField
-              label="Product ID"
-              type="number"
-              value={typeof item.product === 'object' ? (item.product as { id: number }).id : item.product}
-              onChange={(e) => handleItemChange(idx, 'product', Number(e.target.value))}
-              fullWidth
-            />
-
-            <TextField
-              fullWidth
-              label="Rate"
-              type="number"
-              value={item.rate}
-              onChange={(e) => handleItemChange(idx, 'rate', parseFloat(e.target.value) || 0)}
-              sx={{ mt: 2 }}
-            />
-
-            <Typography variant="subtitle1" mt={2}>
-              Locations
-            </Typography>
-            {item.item_locations.map((loc, locIdx) => (
-              <Box key={locIdx} display="flex" gap={1} mt={1}>
+      <DialogContent dividers>
+        {loadingData ? (
+          <Box textAlign="center" py={4}><CircularProgress /></Box>
+        ) : (
+          <>
+            <Typography variant="h6" gutterBottom>Purchase Details</Typography>
+            <Grid container spacing={1} mb={3}>
+              <Grid size={{ xs:12, md:2 }}>
                 <TextField
-                  label="Location ID"
-                  type="number"
-                  value={typeof loc.location === 'object' ? (loc.location as { id: number }).id : loc.location}
-                  onChange={(e) =>
-                    handleItemLocationChange(idx, locIdx, 'location', Number(e.target.value))
-                  }
-                  sx={{ flex: 1 }}
+                  label="Purchase Date"
+                  type="date"
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  value={form.purchase_date}
+                  onChange={(e) => handleFormChange('purchase_date', e.target.value)}
                 />
+              </Grid>
+              <Grid size={{ xs:12, md:4 }}>
                 <TextField
-                  label="Quantity"
-                  type="number"
-                  value={loc.quantity}
-                  onChange={(e) =>
-                    handleItemLocationChange(idx, locIdx, 'quantity', parseInt(e.target.value) || 0)
-                  }
-                  sx={{ width: 100 }}
+                  label="Supplier Name"
+                  fullWidth
+                  value={form.supplier_name}
+                  onChange={(e) => handleFormChange('supplier_name', e.target.value)}
                 />
-              </Box>
-            ))}
-          </Box>
-        ))}
+              </Grid>
+              <Grid size={{ xs:12, md:2 }}>
+                <TextField
+                  label="Invoice Number"
+                  fullWidth
+                  value={form.invoice_number}
+                  onChange={(e) => handleFormChange('invoice_number', e.target.value)}
+                />
+              </Grid>
+              <Grid size={{ xs:12, md:2 }} sx={{ minWidth: 150 }}>
+                <Autocomplete
+                  options={['Cash', 'Credit', 'Online', 'Card']}
+                  value={form.payment_mode}
+                  onChange={(_, newValue) => handleFormChange('payment_mode', newValue || '')}
+                  renderInput={(params) => <TextField {...params} label="Payment Mode" fullWidth />}
+                />
+              </Grid>
+              <Grid size={{ xs:12, md:2 }} sx={{ minWidth: 150 }}>
+                <Autocomplete
+                  options={['AZIZIYAH_SHOP', 'ALWAB_SHOP', 'MAIN_STORE', 'JAMSHEER', 'FAWAS', 'IRSHAD', 'MOOSA', 'FATHIH', 'FIROZ']}
+                  value={form.purchased_by}
+                  onChange={(_, newValue) => handleFormChange('purchased_by', newValue || '')}
+                  renderInput={(params) => <TextField {...params} label="Purchased By" fullWidth />}
+                />
+              </Grid>
+            </Grid>
+
+            <Typography variant="h6" gutterBottom>Products</Typography>
+            {form.items.map((item, index) => {
+              const totalQty = item.item_locations.reduce((sum, l) => sum + l.quantity, 0);
+              const rowTotal = item.rate * totalQty;
+
+              return (
+                <Grid container spacing={1} key={index} alignItems="flex-start">
+                  <Grid size={{ xs:12, md:9 }}>
+                    <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                      <Grid size={{ xs:12, md:4 }} sx={{ minWidth: 150 }}>
+                        <Autocomplete
+                          options={products}
+                          getOptionLabel={(option) => option.itemName}
+                          value={products.find(p => p.id === item.product) || null}
+                          isOptionEqualToValue={(option, value) => option.id === value.id}
+                          onChange={(_, newValue) =>
+                            handleItemChange(index, 'product', newValue || '')
+                          }
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Product"
+                              fullWidth
+                              inputRef={(el) => { productRefs.current[index] = el; }}
+                            />
+                          )}
+                        />
+                      </Grid>
+
+                      <Grid size={{ xs:12, md:1.5 }}>
+                        <TextField
+                          label="Rate"
+                          type="number"
+                          fullWidth
+                          value={item.rate}
+                          onChange={(e) => handleItemChange(index, 'rate', Math.max(0, Number(e.target.value)))}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                        />
+                      </Grid>
+
+                      {item.item_locations.map((loc, locIndex) => (
+                        <Grid size={{ xs:12, md:4 }} key={locIndex} sx={{ display: 'flex', gap: 1 }}>
+                          <Autocomplete
+                            options={locations.filter((l) =>
+                              !item.item_locations.some((il, i) => il.location === l.id && i !== locIndex)
+                            )}
+                            getOptionLabel={(option) => option.name}
+                            value={locations.find(l => l.id === loc.location) || null}
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
+                            onChange={(_, newValue) =>
+                              handleItemLocationChange(index, locIndex, 'location', newValue ? newValue.id : '')
+                            }
+                            renderInput={(params) => {
+                              const key = `${index}-${locIndex}`;
+                              return (
+                                <TextField
+                                  {...params}
+                                  label="Location"
+                                  sx={{ flex: 1, minWidth: 150 }}
+                                  inputRef={(el) => { locationRefs.current[key] = el; }}
+                                />
+                              );
+                            }}
+                          />
+                          <TextField
+                            label="Qty"
+                            type="number"
+                            value={loc.quantity}
+                            onChange={(e) => handleItemLocationChange(index, locIndex, 'quantity', Number(e.target.value))}
+                            sx={{ width: 80 }}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                          />
+                          <IconButton onClick={() => {
+                            const updated = [...form.items];
+                            updated[index].item_locations = updated[index].item_locations.filter((_, i) => i !== locIndex);
+                            setForm((f) => ({ ...f, items: updated }));
+                          }}>
+                            <Iconify icon="solar:trash-bin-trash-bold" />
+                          </IconButton>
+                        </Grid>
+                      ))}
+
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => {
+                          const updated = [...form.items];
+                          updated[index].item_locations.push({ location: '', quantity: 0 });
+                          setForm((f) => ({ ...f, items: updated }));
+
+                          setTimeout(() => {
+                            const key = `${index}-${updated[index].item_locations.length - 1}`;
+                            locationRefs.current[key]?.focus();
+                          }, 100);
+                        }}
+                      >
+                        + Stock
+                      </Button>
+                    </Grid>
+                  </Grid>
+
+                  <Grid size={{ xs:12, md:3 }}>
+                    <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                      <Grid size={{ xs:6, md:8 }}>
+                        <Box
+                          sx={{
+                            border: '1px solid #ccc',
+                            borderRadius: 2,
+                            padding: 1,
+                            textAlign: 'center',
+                            backgroundColor: '#f9f9f9',
+                          }}
+                        >
+                          <Typography variant="subtitle2">Product Total</Typography>
+                          <Typography sx={{ minWidth: 150 }} fontWeight="bold">{rowTotal.toFixed(2)}</Typography>
+                        </Box>
+                      </Grid>
+                      <Grid size={{ xs:6, md:4 }}>
+                        <IconButton onClick={() => {
+                          const updated = [...form.items];
+                          updated.splice(index, 1);
+                          setForm((f) => ({ ...f, items: updated }));
+                        }}>
+                          <Iconify icon="solar:trash-bin-trash-bold" />
+                        </IconButton>
+                      </Grid>
+                    </Grid>
+                  </Grid>
+                </Grid>
+              );
+            })}
+
+            <Box textAlign="right" mb={3}>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setForm((f) => ({
+                    ...f,
+                    items: [...f.items, { product: '', rate: 0, item_locations: [] }],
+                  }));
+
+                  setTimeout(() => {
+                    const lastIndex = productRefs.current.length - 1;
+                    productRefs.current[lastIndex]?.focus();
+                  }, 100);
+                }}
+              >
+                + Add Item
+              </Button>
+            </Box>
+
+            <Typography variant="h6" gutterBottom>Summary</Typography>
+            <Grid container spacing={1} alignItems="center">
+              <Grid size={{ xs:12, md:3 }}>
+                <TextField
+                  label="Discount"
+                  type="number"
+                  fullWidth
+                  value={form.discount}
+                  onChange={(e) => handleFormChange('discount', Number(e.target.value))}
+                />
+              </Grid>
+              <Grid size={{ xs:12, md:3 }}>
+                <Box
+                  sx={{
+                    border: '1px solid #ccc',
+                    borderRadius: 2,
+                    padding: 1,
+                    textAlign: 'center',
+                    backgroundColor: '#f9f9f9',
+                  }}
+                >
+                  <Typography variant="subtitle2">Grand Total</Typography>
+                  <Typography sx={{ minWidth: 150 }} variant="h6">{(Number(grandTotal) || 0).toFixed(2)}</Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </>
+        )}
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained">Save</Button>
+        <Button onClick={() => { resetForm(); onClose(); }} disabled={loading}>Cancel</Button>
+        <Button onClick={handleSubmit} variant="contained" disabled={loading || !isFormValid}>
+          {loading ? <CircularProgress size={24} /> : 'Save Changes'}
+        </Button>
       </DialogActions>
     </Dialog>
   );

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import imageCompression from 'browser-image-compression';
+import React, { useEffect, useState, useRef } from 'react';
 
 import {
+  Autocomplete,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -39,6 +39,7 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
   const [barcode, setBarcode] = useState(initialBarcode || '');
+  const lastLocationRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState({
     item_name: '',
@@ -189,6 +190,7 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           onChange={(e) => setBarcode(e.target.value)}
           fullWidth
           margin="normal"
+          disabled={!initialBarcode}
           onKeyDown={(e) => e.key === 'Enter' && handleScan()}
           InputProps={{
             endAdornment: (
@@ -238,43 +240,62 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           margin="normal"
         />
 
-        <TextField
-          label="Category"
-          name="category_id"
-          value={form.category_id}
-          onChange={handleChange}
-          select
-          fullWidth
-          margin="normal"
-          required
-        >
-          {categories.map((cat) => (
-            <MenuItem key={cat.id} value={cat.id.toString()}>
-              {cat.name}
-            </MenuItem>
-          ))}
-        </TextField>
+        <Autocomplete
+          options={categories}
+          getOptionLabel={(option) => option.name}
+          value={categories.find((cat) => cat.id.toString() === form.category_id) || null}
+          onChange={(_, newValue) => {
+            setForm((f) => ({
+              ...f,
+              category_id: newValue ? newValue.id.toString() : '',
+            }));
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Category"
+              fullWidth
+              margin="normal"
+              required
+            />
+          )}
+        />
 
         <Box mt={2}>
           {form.locations.map((entry, index) => (
             <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <TextField
-                select
-                label="Location"
-                value={entry.location_id}
-                onChange={(e) => {
+              <Autocomplete
+                sx={{ flex: 1 }}
+                options={locations}
+                getOptionLabel={(option) => option.name}
+                value={locations.find((loc) => loc.id === entry.location_id) || null}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                onChange={(_, newValue) => {
                   const updated = [...form.locations];
-                  updated[index].location_id = e.target.value;
+                  updated[index].location_id = newValue ? newValue.id : '';
                   setForm((f) => ({ ...f, locations: updated }));
                 }}
-                sx={{ flex: 1 }}
-              >
-                {locations.map((loc) => (
-                  <MenuItem key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </MenuItem>
-                ))}
-              </TextField>
+                renderOption={(props, option) => {
+                  const isUsed = form.locations.some(
+                    (l, i) => i !== index && l.location_id === option.id
+                  );
+                  return (
+                    <li {...props} style={{ opacity: isUsed ? 0.5 : 1, pointerEvents: isUsed ? 'none' : 'auto' }}>
+                      {option.name}
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Location"
+                    fullWidth
+                    margin="normal"
+                    required
+                    inputRef={index === form.locations.length - 1 ? lastLocationRef : null}
+                  />
+                )}
+              />
 
               <TextField
                 label="Qty"
@@ -286,6 +307,7 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
                   setForm((f) => ({ ...f, locations: updated }));
                 }}
                 sx={{ width: 100 }}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
 
               <IconButton
@@ -303,12 +325,16 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           <Button
             variant="outlined"
             size="small"
-            onClick={() =>
+            onClick={() => {
               setForm((f) => ({
                 ...f,
                 locations: [...f.locations, { location_id: '', quantity: 0 }],
-              }))
-            }
+              }));
+
+              setTimeout(() => {
+                lastLocationRef.current?.focus();
+              }, 100);
+            }}
           >
             Add Location
           </Button>
@@ -323,6 +349,7 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           fullWidth
           margin="normal"
           required
+          onWheel={(e) => (e.target as HTMLElement).blur()}
         />
 
         <TextField

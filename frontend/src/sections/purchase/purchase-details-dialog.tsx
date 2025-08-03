@@ -19,25 +19,27 @@ const PurchaseDetailsDialog = ({ open, onClose, data, loading }: Props) => (
         <Typography>Loading...</Typography>
       ) : data ? (
         <Box component={Paper} variant="outlined" p={2}>
-          {/* Supplier + Invoice Details */}
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid size={{ xs: 6 }}>
-              <Typography variant="subtitle2">Supplier</Typography>
-              <Typography>{data.supplier_name}</Typography>
+          <Box sx={{ backgroundColor: '#f5f5f5', p: 2, borderRadius: 1, mb: 2 }}>
+            {/* Supplier + Invoice Details */}
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="subtitle2">Supplier</Typography>
+                <Typography>{data.supplier_name}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="subtitle2">Invoice Number</Typography>
+                <Typography>{data.invoice_number}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="subtitle2">Purchase Date</Typography>
+                <Typography>{data.purchase_date}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="subtitle2">Payment Mode</Typography>
+                <Typography>{data.payment_mode}</Typography>
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 6 }}>
-              <Typography variant="subtitle2">Invoice Number</Typography>
-              <Typography>{data.invoice_number}</Typography>
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <Typography variant="subtitle2">Purchase Date</Typography>
-              <Typography>{data.purchase_date}</Typography>
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <Typography variant="subtitle2">Payment Mode</Typography>
-              <Typography>{data.payment_mode}</Typography>
-            </Grid>
-          </Grid>
+          </Box>          
 
           <Divider sx={{ my: 2 }} />
 
@@ -45,7 +47,7 @@ const PurchaseDetailsDialog = ({ open, onClose, data, loading }: Props) => (
           <Typography variant="h6" gutterBottom>Products</Typography>
           <Table size="small">
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ backgroundColor: '#e0e0e0' }}>
                 <TableCell><strong>Product</strong></TableCell>
                 <TableCell>Barcode</TableCell>
                 <TableCell>Brand</TableCell>
@@ -56,7 +58,7 @@ const PurchaseDetailsDialog = ({ open, onClose, data, loading }: Props) => (
             </TableHead>
             <TableBody>
               {data.items.map((item: any) => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} sx={{ backgroundColor: item % 2 === 0 ? '#fafafa' : 'white' }}>
                   <TableCell>{item.product_name}</TableCell>
                   <TableCell>{item.product_barcode}</TableCell>
                   <TableCell>{item.product_brand}</TableCell>

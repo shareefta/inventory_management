@@ -1,9 +1,9 @@
 // Import remains same...
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 import Grid from '@mui/material/Grid';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, MenuItem, CircularProgress,
   Box, IconButton, Typography
 } from '@mui/material';
@@ -27,6 +27,9 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   const [products, setProducts] = useState<ProductProps[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
+  const dateRef = useRef<HTMLInputElement>(null);
+  const productRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const locationRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const [form, setForm] = useState({
     supplier_name: '',
@@ -62,14 +65,18 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   }, 0) - form.discount;
 
   useEffect(() => {
-    if (open) {
-      Promise.all([getProducts(), getLocations()])
-        .then(([prods, locs]) => {
-          setProducts(prods);
-          setLocations(locs);
-        })
-        .catch(console.error);
-    }
+    if (!open) return;
+
+    Promise.all([getProducts(), getLocations()])
+      .then(([prods, locs]) => {
+        setProducts(prods);
+        setLocations(locs);
+      })
+      .catch(console.error);
+
+    setTimeout(() => {
+      dateRef.current?.focus();
+    }, 100);
   }, [open]);
 
   const handleFormChange = (field: string, value: any) => {
@@ -146,50 +153,39 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
 
         {/* Section 1: Purchase Details */}
         <Typography variant="h6" gutterBottom>Purchase Details</Typography>
-        <Grid container spacing={2} mb={3}>
+        <Grid container spacing={1} mb={3}>
           <Grid size={{ sm:6, md: 2 }}>
             <TextField label="Purchase Date" type="date" fullWidth InputLabelProps={{ shrink: true }}
               value={form.purchase_date}
-              onChange={(e) => handleFormChange('purchase_date', e.target.value)} />
+              onChange={(e) => handleFormChange('purchase_date', e.target.value)} 
+              inputRef={dateRef}
+            />
           </Grid>
-          <Grid size={{ sm:6, md: 4 }}>
+          <Grid size={{ sm:12, md: 4 }}>
             <TextField label="Supplier Name" fullWidth
               value={form.supplier_name}
               onChange={(e) => handleFormChange('supplier_name', e.target.value)} />
           </Grid>
-          <Grid size={{ sm:6, md: 2 }}>
+          <Grid size={{ sm:4, md: 2 }}>
             <TextField label="Invoice Number" fullWidth
               value={form.invoice_number}
               onChange={(e) => handleFormChange('invoice_number', e.target.value)} />
           </Grid>
-          <Grid size={{ sm:6, md: 2 }}>
-            <TextField label="Payment Mode" select fullWidth
+          <Grid size={{ sm:4, md: 2 }} sx={{ minWidth: 150 }}>
+            <Autocomplete
+              options={['Cash', 'Credit', 'Online', 'Card']}
               value={form.payment_mode}
-              onChange={(e) => handleFormChange('payment_mode', e.target.value)}>
-              <MenuItem value="Cash">Cash</MenuItem>
-              <MenuItem value="Credit">Credit</MenuItem>
-              <MenuItem value="Online">Online</MenuItem>
-              <MenuItem value="Card">Card</MenuItem>
-            </TextField>
+              onChange={(_, newValue) => handleFormChange('payment_mode', newValue || '')}
+              renderInput={(params) => <TextField {...params} label="Payment Mode" fullWidth />}
+            />
           </Grid>
-          <Grid size={{ sm:6, md: 2 }}>
-            <TextField
-              label="Purchased By"
-              select
-              fullWidth
+          <Grid size={{ sm:4, md: 2 }} sx={{ minWidth: 150 }}>
+            <Autocomplete
+              options={['AZIZIYAH_SHOP', 'ALWAB_SHOP', 'MAIN_STORE', 'JAMSHEER', 'FAWAS', 'IRSHAD', 'MOOSA', 'FATHIH', 'FIROZ']}
               value={form.purchased_by}
-              onChange={(e) => handleFormChange('purchased_by', e.target.value)}
-            >
-              <MenuItem value="AZIZIYAH_SHOP">AZIZIYAH SHOP</MenuItem>
-              <MenuItem value="ALWAB_SHOP">ALWAB SHOP</MenuItem>
-              <MenuItem value="MAIN_STORE">MAIN STORE</MenuItem>
-              <MenuItem value="JAMSHEER">JAMSHEER</MenuItem>
-              <MenuItem value="FAWAS">FAWAS</MenuItem>
-              <MenuItem value="IRSHAD">IRSHAD</MenuItem>
-              <MenuItem value="MOOSA">MOOSA</MenuItem>
-              <MenuItem value="FATHIH">FATHIH</MenuItem>
-              <MenuItem value="FIROZ">FIROZ</MenuItem>
-            </TextField>
+              onChange={(_, newValue) => handleFormChange('purchased_by', newValue || '')}
+              renderInput={(params) => <TextField {...params} label="Purchased By" fullWidth />}
+            />
           </Grid>
         </Grid>
 
@@ -200,41 +196,66 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
           const rowTotal = item.rate * totalQty;
 
           return (
-            <Grid  container spacing={2} key={index} alignItems="flex-start" >
+            <Grid  container spacing={1} key={index} alignItems="flex-start" >
               <Grid size={{ sm:12, md: 9 }}>
                 <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                  <Grid size={{ sm:12, md: 4 }}>
-                    <TextField label="Product" select fullWidth
-                      value={item.product}
-                      onChange={(e) => handleItemChange(index, 'product', Number(e.target.value))}>
-                      {products.map((p) => (
-                        <MenuItem key={p.id} value={p.id}>{p.itemName}</MenuItem>
-                      ))}
-                    </TextField>
+                  <Grid size={{ sm:10, md: 4 }} sx={{ minWidth: 150 }}>
+                    <Autocomplete
+                      options={products}
+                      getOptionLabel={(option) => option.itemName}
+                      value={products.find(p => p.id === item.product) || null}
+                      onChange={(_, newValue) =>
+                        handleItemChange(index, 'product', newValue ? newValue.id : '')
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Product"
+                          fullWidth
+                          inputRef={(el) => {
+                            productRefs.current[index] = el;
+                          }}
+                        />
+                      )}
+                    />
                   </Grid>
 
-                  <Grid size={{ sm:4, md: 1.5 }}>
+                  <Grid size={{ sm:2, md: 1.5 }}>
                     <TextField label="Rate" type="number" fullWidth
                       value={item.rate}
-                      onChange={(e) => handleItemChange(index, 'rate', Math.max(0, Number(e.target.value)))} />
+                      onChange={(e) => handleItemChange(index, 'rate', Math.max(0, Number(e.target.value)))} 
+                      onWheel={(e) => (e.target as HTMLElement).blur()}  
+                    />
                   </Grid>
 
                   {item.item_locations.map((loc, locIndex) => (
                     <Grid size={{ sm:6, md: 4}} key={locIndex} sx={{ display: 'flex', gap: 1 }}>
-                      <TextField label="Location" select value={loc.location}
-                        onChange={(e) => handleItemLocationChange(index, locIndex, 'location', Number(e.target.value))}
-                        sx={{ flex: 1 }}>
-                        {locations.map((l) => {
-                          const isDisabled = item.item_locations.some((il, i) => il.location === l.id && i !== locIndex);
+                      <Autocomplete
+                        options={locations.filter((l) =>
+                          !item.item_locations.some((il, i) => il.location === l.id && i !== locIndex)
+                        )}
+                        getOptionLabel={(option) => option.name}
+                        value={locations.find(l => l.id === loc.location) || null}
+                        onChange={(_, newValue) =>
+                          handleItemLocationChange(index, locIndex, 'location', newValue ? newValue.id : '')
+                        }
+                        renderInput={(params) => {
+                          const key = `${index}-${locIndex}`;
                           return (
-                            <MenuItem key={l.id} value={l.id} disabled={isDisabled}>{l.name}</MenuItem>
+                            <TextField
+                              {...params}
+                              label="Location"
+                              sx={{ flex: 1, minWidth: 150 }}
+                              inputRef={(el) => {
+                                locationRefs.current[key] = el;
+                              }}
+                            />
                           );
-                        })}
-                      </TextField>
-
+                        }}
+                      />
                       <TextField label="Qty" type="number" value={loc.quantity}
                         onChange={(e) => handleItemLocationChange(index, locIndex, 'quantity', Number(e.target.value))}
-                        sx={{ width: 80 }} />
+                        sx={{ width: 80 }} onWheel={(e) => (e.target as HTMLElement).blur()} />
 
                       <IconButton onClick={() => {
                         const updated = [...form.items];
@@ -246,17 +267,26 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
                     </Grid>
                   ))}
 
-                  <Button variant="text" size="small" onClick={() => {
-                    const updated = [...form.items];
-                    updated[index].item_locations.push({ location: '', quantity: 0 });
-                    setForm((f) => ({ ...f, items: updated }));
-                  }}>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => {
+                      const updated = [...form.items];
+                      updated[index].item_locations.push({ location: '', quantity: 0 });
+                      setForm((f) => ({ ...f, items: updated }));
+
+                      setTimeout(() => {
+                        const key = `${index}-${updated[index].item_locations.length - 1}`;
+                        locationRefs.current[key]?.focus();
+                      }, 100);
+                    }}
+                  >
                     + Stock
                   </Button>
                 </Grid>
               </Grid>
               <Grid size={{ sm:12, md: 3 }}>
-                <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
                   <Grid size={{ sm:6, md: 8 }}>
                     <Box
                       sx={{
@@ -268,7 +298,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
                       }}
                     >
                       <Typography variant="subtitle2">Product Total</Typography>
-                      <Typography fontWeight="bold">{rowTotal.toFixed(2)}</Typography>
+                      <Typography sx={{ minWidth: 150 }} fontWeight="bold">{rowTotal.toFixed(2)}</Typography>
                     </Box>
                   </Grid>
                   <Grid size={{ sm:6, md: 4 }}>
@@ -287,20 +317,28 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
         })}
 
         <Box textAlign="right" mb={3}>
-          <Button variant="contained" onClick={() =>
-            setForm((f) => ({
-              ...f,
-              items: [...f.items, { product: '', rate: 0, item_locations: [] }],
-            }))
-          }>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setForm((f) => ({
+                ...f,
+                items: [...f.items, { product: '', rate: 0, item_locations: [] }],
+              }));
+
+              setTimeout(() => {
+                const lastIndex = productRefs.current.length - 1;
+                productRefs.current[lastIndex]?.focus();
+              }, 100);
+            }}
+          >
             + Add Item
           </Button>
         </Box>
 
         {/* Section 3: Summary */}
         <Typography variant="h6" gutterBottom>Summary</Typography>
-        <Grid container spacing={2} alignItems="center">
-          <Grid size={{ sm:6, md: 3 }}>
+        <Grid container spacing={1} alignItems="center">
+          <Grid size={{ sm:4, md: 3 }}>
             <TextField label="Discount" type="number" fullWidth
               value={form.discount}
               onChange={(e) => handleFormChange('discount', Number(e.target.value))} />
@@ -316,7 +354,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
               }}
             >
               <Typography variant="subtitle2">Grand Total</Typography>
-              <Typography variant="h6">{(Number(grandTotal) || 0).toFixed(2)}</Typography>
+              <Typography sx={{ minWidth: 150 }} variant="h6">{(Number(grandTotal) || 0).toFixed(2)}</Typography>
             </Box>
           </Grid>
         </Grid>
