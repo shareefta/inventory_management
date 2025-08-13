@@ -41,7 +41,6 @@ class ProductSerializer(serializers.ModelSerializer):
     total_quantity = serializers.SerializerMethodField()
 
     image = serializers.ImageField(required=False, allow_null=True)
-    # barcode_image = serializers.ImageField(read_only=True)
     
     class Meta:
         model = Product

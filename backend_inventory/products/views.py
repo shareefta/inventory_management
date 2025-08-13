@@ -6,6 +6,10 @@ from rest_framework.parsers import MultiPartParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Product, Category, Location, Purchase
 from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer, PurchaseDetailSerializer
+import io
+import barcode
+from barcode.writer import ImageWriter
+from django.http import HttpResponse
 
 # ----------------------------
 # Product ViewSet
@@ -69,3 +73,20 @@ def scan_barcode(request):
         return Response({'found': True, 'product': serializer.data}, status=status.HTTP_200_OK)
     except Product.DoesNotExist:
         return Response({'found': False, 'product': None}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def generate_barcode(request, unique_id):
+    try:
+        # Use CODE128 (widely supported)
+        barcode_class = barcode.get_barcode_class('code128')
+        barcode_img = barcode_class(unique_id, writer=ImageWriter())
+
+        # Generate image in-memory (PNG)
+        buffer = io.BytesIO()
+        barcode_img.write(buffer, options={'module_width': 0.3, 'module_height': 15, 'font_size': 10})
+        buffer.seek(0)
+
+        return HttpResponse(buffer.getvalue(), content_type='image/png')
+    
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

@@ -23,6 +23,14 @@ export const ProductsPage = lazy(() => import('src/pages/products'));
 export const CategoryPage = lazy(() => import('src/pages/category'));
 export const LocationPage = lazy(() => import('src/pages/location'));
 export const PurchasePage = lazy(() => import('src/pages/purchase'));
+export const SalesPage = lazy(() => import('src/pages/sales'));
+export const SettingsView = lazy(() => import('src/pages/settings'));
+
+export const SettingsLayout = lazy(() => import('src/pages/settings/settings-layout'));
+export const SettingsMenuPage = lazy(() => import('src/pages/settings/settings-menu'));
+export const SalesChannelsPage = lazy(() => import('src/pages/settings/sales-channels'));
+export const SalesSectionsPage = lazy(() => import('src/pages/settings/sales-sections'));
+
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 const renderFallback = () => (
@@ -63,6 +71,16 @@ export const routesSection: RouteObject[] = [
       { path: 'category', element: <CategoryPage /> },
       { path: 'location', element: <LocationPage /> },
       { path: 'purchase', element: <PurchasePage /> },
+      { path: 'sales', element: <SalesPage /> },
+      {
+        path: 'settings',
+        element: <SettingsLayout />,
+        children: [
+          { index: true, element: <SettingsMenuPage /> },
+          { path: 'channels', element: <SalesChannelsPage /> },
+          { path: 'sections', element: <SalesSectionsPage /> },
+        ],
+      },
     ],
   },
   {
@@ -79,7 +97,6 @@ export const routesSection: RouteObject[] = [
     children: [
       { index: true, element: <StaffDashboardPage /> },
       { path: 'products', element: <ProductsPage /> },
-      { path: 'purchase', element: <PurchasePage /> },
     ],
   },
   {

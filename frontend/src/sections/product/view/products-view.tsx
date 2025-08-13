@@ -138,6 +138,11 @@ export function ProductView() {
     { id: '', disableSorting: true },
   ];
 
+  const handleShowBarcode = (product: ProductProps) => {
+    setSelectedProductForBarcode(product);
+    setBarcodeDialogOpen(true);
+  };
+
   return (
     <DashboardContent maxWidth="xl">
       <Grid container spacing={3}>
@@ -169,8 +174,8 @@ export function ProductView() {
           <BarcodeScanner
             onProductFound={(product) => {
               enqueueSnackbar(`Product found: ${product.item_name}`, { variant: 'info' });
-              setProductToEdit(product);
-              setEditProductDialogOpen(true);
+              // setProductToEdit(product);
+              // setEditProductDialogOpen(true);
             }}
             onNotFound={(barcode) => {
               enqueueSnackbar(`Product not found for barcode: ${barcode}`, { variant: 'warning' });
@@ -244,7 +249,7 @@ export function ProductView() {
 
                           // Pass update callback for inline edit save
                           onEdit={handleUpdateProductInList}
-                          onShowBarcode={(product) => {
+                          handleShowBarcode={(product) => {
                             setSelectedProductForBarcode(product);
                             setBarcodeDialogOpen(true);
                           }}
@@ -266,7 +271,7 @@ export function ProductView() {
               count={products.length}
               rowsPerPage={table.rowsPerPage}
               onPageChange={table.onChangePage}
-              rowsPerPageOptions={[5, 10, 50]}
+              rowsPerPageOptions={[10, 25, 50]}
               onRowsPerPageChange={table.onChangeRowsPerPage}
             />
           </Card>
@@ -277,13 +282,7 @@ export function ProductView() {
         <BarcodeDialog
           open={barcodeDialogOpen}
           onClose={() => setBarcodeDialogOpen(false)}
-          product={{
-            uniqueId: selectedProductForBarcode.uniqueId,
-            itemName: selectedProductForBarcode.itemName,
-            brand: selectedProductForBarcode.brand,
-            rate: Number(selectedProductForBarcode.rate),
-            serialNumber: selectedProductForBarcode.serialNumber,
-          }}
+          product={selectedProductForBarcode}
         />
       )}     
     </DashboardContent>

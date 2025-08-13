@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'accounts',
     'products',
     'delivery',
+    'sales',
     'corsheaders',
     'rest_framework_simplejwt',
     'django_filters',

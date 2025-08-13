@@ -15,8 +15,8 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 barcode_validator = RegexValidator(
-    regex=r'^[A-Z0-9]{8,13}$',
-    message='Barcode must be 8–13 characters, uppercase letters and digits only.'
+    regex=r'^[A-Z0-9]{8,30}$',
+    message='Barcode must be 8–30 characters, uppercase letters and digits only.'
 )
 
 class Category(models.Model):

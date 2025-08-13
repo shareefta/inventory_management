@@ -27,7 +27,8 @@ import { updateProduct } from 'src/api/products';
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 
-import ProductEditDialog from 'src/sections/product/product-edit-dialog'; 
+import BarcodeDialog from 'src/sections/product/barcode';
+import ProductEditDialog from 'src/sections/product/product-edit-dialog';
 
 // ----------------------------------------------------------------------
 export type CategoryEntry = {
@@ -70,7 +71,7 @@ type ProductTableRowProps = {
   onDelete?: (id: string) => void;
   categories: { id: number; name: string }[];
   locations: { id: number; name: string }[];
-  onShowBarcode: (product: ProductProps) => void
+  handleShowBarcode?: (product: ProductProps) => void
 };
 
 export function ProductTableRow({
@@ -82,7 +83,6 @@ export function ProductTableRow({
   onDelete,
   categories,
   locations,
-  onShowBarcode,
 }: ProductTableRowProps) {
   const [openPopover, setOpenPopover] = useState<HTMLButtonElement | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -97,6 +97,8 @@ export function ProductTableRow({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
   const [products, setProducts] = useState<ProductProps[]>([]);
+  const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductProps | null>(null);
 
   const updateProductInTable = (productToUpdate: ProductProps) => {
     setProducts((prevProducts) =>
@@ -109,6 +111,11 @@ export function ProductTableRow({
     setDescriptionOpen(true);
   };
   
+  const handleShowBarcode = (product: ProductProps) => {
+    setSelectedProduct(product);
+    setBarcodeDialogOpen(true);
+  };
+
   useEffect(() => {
     if (updatedProduct.image instanceof File) {
       const objectUrl = URL.createObjectURL(updatedProduct.image);
@@ -232,7 +239,7 @@ export function ProductTableRow({
         </TableCell>
 
         <TableCell>
-          <Button variant="text" onClick={() => onShowBarcode(row)}>
+          <Button variant="text" onClick={() => handleShowBarcode?.(row)}>
             {row.uniqueId}
           </Button>
         </TableCell>
@@ -416,6 +423,11 @@ export function ProductTableRow({
           setProductToEdit(null);
           updateProductInTable(productToUpdate);
         }}
+      />
+      <BarcodeDialog
+        open={barcodeDialogOpen}
+        onClose={() => setBarcodeDialogOpen(false)}
+        product={selectedProduct!}
       />
     </>
   );
