@@ -46,10 +46,6 @@ class SalesSection(models.Model):
 
 
 class SectionProductPrice(models.Model):
-    """
-    Per-section (per-department) selling prices for products.
-    Use the bulk API to set/update prices in bulk.
-    """
     section = models.ForeignKey(SalesSection, on_delete=models.CASCADE, related_name="prices")
     product = models.ForeignKey("products.Product", on_delete=models.CASCADE, related_name="section_prices")
     price = models.DecimalField(max_digits=12, decimal_places=2)
@@ -69,6 +65,7 @@ class Sale(models.Model):
         ("Online", "Online"),  # TAP / gateways
     ]
 
+    invoice_number = models.CharField(max_length=50, blank=True, null=True, unique=True)
     channel = models.ForeignKey(SalesChannel, on_delete=models.PROTECT, related_name="sales")
     section = models.ForeignKey(SalesSection, on_delete=models.PROTECT, related_name="sales")
 

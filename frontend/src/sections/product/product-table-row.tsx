@@ -46,6 +46,11 @@ export type ProductLocationEntry = {
   quantity: number;
 };
 
+export type SectionPrice = {
+  section: number;
+  price: number;
+};
+
 export type ProductProps = {
   id: string;
   uniqueId: string;
@@ -60,6 +65,7 @@ export type ProductProps = {
   locations: ProductLocationEntry[];
   total_quantity: number;
   description?: string;
+  section_prices?: SectionPrice[];
 };
 
 type ProductTableRowProps = {

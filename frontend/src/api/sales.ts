@@ -85,10 +85,14 @@ export const deleteSection = (id: number) => api.delete(`sections/${id}/`);
 
 // --- Section Product Prices ---
 export const getSectionPrices = (sectionId: number) =>
-  api.get<SectionProductPrice[]>("prices/", { params: { section_id: sectionId } });
+  api.get<SectionProductPrice[]>("prices/", { params: { section_id: sectionId } })
+    .then(res => res.data);
 
-export const bulkSetSectionPrices = (section: number, items: { product: number; price: string }[]) =>
-  api.post("prices/bulk-set/", { section, items });
+export const bulkSetSectionPrices = (
+  sections: number | number[],
+  items: { product: number; price: string }[]
+) =>
+  api.post("prices/bulk-set/", { sections, items });
 
 // --- Sales ---
 export const getSales = () => api.get<Sale[]>("sales/");

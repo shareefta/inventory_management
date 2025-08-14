@@ -5,6 +5,8 @@ from django.db.models import F
 from rest_framework import serializers
 from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem
 from products.models import Product, ProductLocation, Location
+from django.utils import timezone
+from django.db.models import Count
 
 def quantize_money(value):
     return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -113,6 +115,19 @@ class SaleSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         user = request.user
 
+        # --- Generate invoice number ---
+        section = validated_data["section"]
+        today = timezone.now().date()
+        prefix = section.name[:3].upper()
+        date_part = today.strftime("%y%m%d")
+
+        # Count how many sales exist today for this section
+        daily_count = Sale.objects.filter(section=section, sale_datetime__date=today).count()
+        next_number = daily_count + 1
+
+        invoice_number = f"{prefix}{date_part}{next_number:03d}"  # zero-padded 3 digits
+        validated_data["invoice_number"] = invoice_number
+
         # Create sale with actor & timestamp
         sale = Sale.objects.create(created_by=user, **validated_data)
 
@@ -125,6 +140,7 @@ class SaleSerializer(serializers.ModelSerializer):
         # Build items and collect stock adjustments
         to_create = []
         stock_moves = []  # (product_id, qty)
+        
         for item in items_data:
             product_obj = None
             if item.get("product"):

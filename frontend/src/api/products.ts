@@ -27,6 +27,10 @@ export async function getProducts(): Promise<ProductProps[]> {
     active: item.active,
     image: item.image,
     description: item.description,
+    section_prices: item.section_prices?.map((sp: any) => ({
+      section: sp.section,
+      price: Number(sp.price),
+    })) || [],
   }));
 }
 
@@ -55,6 +59,10 @@ export async function getProductByBarcode(barcode: string): Promise<ProductProps
     active: item.active,
     image: item.image,
     description: item.description,
+    section_prices: item.section_prices?.map((sp: any) => ({
+      section: sp.section,
+      price: Number(sp.price),
+    })) || [],
   };
 }
 

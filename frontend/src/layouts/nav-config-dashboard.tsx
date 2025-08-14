@@ -21,7 +21,7 @@ export const navData: NavItem[] = [
   {
     title: 'Product',
     path: '/products',
-    icon: icon('ic-cart'),
+    icon: icon('ic-product'),
   },
   {
     title: 'Purchase',
@@ -31,7 +31,7 @@ export const navData: NavItem[] = [
   {
     title: 'Sales',
     path: '/sales',
-    icon: icon('ic-cart'),
+    icon: icon('ic-sales'),
   },
   {
     title: 'Category',

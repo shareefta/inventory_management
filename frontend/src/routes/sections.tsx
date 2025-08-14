@@ -23,13 +23,17 @@ export const ProductsPage = lazy(() => import('src/pages/products'));
 export const CategoryPage = lazy(() => import('src/pages/category'));
 export const LocationPage = lazy(() => import('src/pages/location'));
 export const PurchasePage = lazy(() => import('src/pages/purchase'));
-export const SalesPage = lazy(() => import('src/pages/sales'));
-export const SettingsView = lazy(() => import('src/pages/settings'));
 
+export const SalesLayout = lazy(() => import('src/sections/sales/sales-layout'));
+export const SalesMenuPage = lazy(() => import('src/sections/sales/sales-menu'));
+export const SalesPage = lazy(() => import('src/pages/sales'));
+
+export const SettingsView = lazy(() => import('src/pages/settings'));
 export const SettingsLayout = lazy(() => import('src/pages/settings/settings-layout'));
 export const SettingsMenuPage = lazy(() => import('src/pages/settings/settings-menu'));
 export const SalesChannelsPage = lazy(() => import('src/pages/settings/sales-channels'));
 export const SalesSectionsPage = lazy(() => import('src/pages/settings/sales-sections'));
+export const SectionPricePage = lazy(() => import('src/pages/settings/section-wise-price'));
 
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
@@ -79,6 +83,15 @@ export const routesSection: RouteObject[] = [
           { index: true, element: <SettingsMenuPage /> },
           { path: 'channels', element: <SalesChannelsPage /> },
           { path: 'sections', element: <SalesSectionsPage /> },
+          { path: 'section-price', element: <SectionPricePage /> },
+        ],
+      },
+      {
+        path: 'sales',
+        element: <SalesLayout />,
+        children: [
+          { index: true, element: <SalesMenuPage /> },
+          { path: 'sales', element: <SalesPage /> },
         ],
       },
     ],

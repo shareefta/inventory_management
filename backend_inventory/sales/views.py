@@ -55,46 +55,37 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
         return qs
 
     @action(detail=False, methods=["post"], url_path="bulk-set")
-    def bulk_set(self, request):
-        """
-        Bulk set/update per-section prices.
-
-        Body:
-        {
-          "section": 123,
-          "items": [
-            {"product": 1, "price": "12.50"},
-            {"product": 2, "price": "9.99"}
-          ]
-        }
-        """
-        section = request.data.get("section")
+    def bulk_set(self, request):        
+        sections = request.data.get("sections")
         items = request.data.get("items", [])
-        if not section or not isinstance(items, list):
-            return Response({"detail": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Normalize to a list
+        if isinstance(sections, int):
+            sections = [sections]
+        elif not isinstance(sections, list) or not all(isinstance(s, int) for s in sections):
+            return Response({"detail": "Invalid sections"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(items, list):
+            return Response({"detail": "Invalid items"}, status=status.HTTP_400_BAD_REQUEST)
 
         created, updated = 0, 0
-        for row in items:
-            product = row.get("product")
-            price = row.get("price")
-            if not product or price is None:
-                continue
-            obj, was_created = SectionProductPrice.objects.update_or_create(
-                section_id=section, product_id=product, defaults={"price": price}
-            )
-            created += int(was_created)
-            updated += int(not was_created)
+        for section_id in sections:
+            for row in items:
+                product = row.get("product")
+                price = row.get("price")
+                if not product or price is None:
+                    continue
+                obj, was_created = SectionProductPrice.objects.update_or_create(
+                    section_id=section_id, product_id=product, defaults={"price": price}
+                )
+                created += int(was_created)
+                updated += int(not was_created)
 
         return Response({"created": created, "updated": updated})
 
-    @action(detail=False, methods=["get"], url_path="lookup")
-    def lookup(self, request):
-        """
-        Get per-section price for a product (by product id or barcode).
 
-        /api/sales/prices/lookup/?section_id=1&product=5
-        /api/sales/prices/lookup/?section_id=1&barcode=ABC12345
-        """
+    @action(detail=False, methods=["get"], url_path="lookup")
+    def lookup(self, request):        
         section_id = request.query_params.get("section_id")
         product_id = request.query_params.get("product")
         barcode = request.query_params.get("barcode")

@@ -1,6 +1,6 @@
 import { CONFIG } from 'src/config-global';
 
-import { SalesView } from 'src/sections/sales/view/sales-view';
+import SalesPage from 'src/sections/sales/sales-page';
 
 // ----------------------------------------------------------------------
 
@@ -9,7 +9,7 @@ export default function Page() {
     <>
       <title>{`Sales - ${CONFIG.appName}`}</title>
 
-      <SalesView />
+      <SalesPage />
     </>
   );
 }
