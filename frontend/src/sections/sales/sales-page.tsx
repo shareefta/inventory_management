@@ -1,6 +1,8 @@
 import type { ProductProps } from 'src/sections/product/product-table-row';
+import type { InvoicePrintProps } from "src/sections/sales/sales-invoice-print";
 
 import { useNavigate } from "react-router-dom";
+import { useReactToPrint } from "react-to-print";
 import { useEffect, useState, useRef } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -17,7 +19,7 @@ import { getProducts } from "src/api/products";
 import { useAuthStore } from "src/store/use-auth-store";
 import { getSections, createSale, SalesSection, getSectionPrices } from "src/api/sales";
 
-import InvoicePrint from "./sales-invoice-print";
+import PosReceipt from "src/sections/sales/sales-invoice-print";
 
 interface CartItem {
   productId?: number;
@@ -44,6 +46,7 @@ interface SaleInstance {
 export default function SalesPage() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
@@ -55,6 +58,15 @@ export default function SalesPage() {
   const [products, setProducts] = useState<ProductProps[]>([]);
 
   const [paymentMode, setPaymentMode] = useState<"Cash" | "Credit" | "Online">("Cash");
+
+  const handlePrint = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: "POS Receipt",
+    pageStyle: `
+      @page { size: 80mm auto; margin: 0; }
+      body { margin: 0; padding: 0; }
+    `,
+  });
 
   // Multiple sales tabs
   const [salesInstances, setSalesInstances] = useState<SaleInstance[]>([
@@ -68,13 +80,7 @@ export default function SalesPage() {
     setSnackbarOpen(true);
   };
 
-  const printRef = useRef<HTMLDivElement>(null);
-
-  // const handlePrint = useReactToPrint({
-  //   content: () => printRef.current as unknown as React.ReactInstance | null,
-  // });
-
-  const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [invoiceData, setInvoiceData] = useState<InvoicePrintProps | null>(null);
   const activeSale = salesInstances.find(s => s.id === activeSaleId)!;
 
   // Fetch sections and products
@@ -202,16 +208,29 @@ export default function SalesPage() {
       const backendInvoice = response.data.invoice_number || "";
 
       // Store data for printing
-      setInvoiceData({
-        ...payload,
+      const newInvoiceData = {
+        invoiceNumber: backendInvoice,
         section: selectedSection,
-        invoice_number: backendInvoice,
-      });
+        date: new Date().toLocaleString(),
+        customerName: activeSale.customerName,
+        customerMobile: activeSale.customerMobile,
+        items: activeSale.cartItems.map(it => ({
+          name: it.product_name,
+          qty: it.quantity,
+          price: it.price,
+          total: it.total
+        })),
+        discount: activeSale.discount,
+        grandTotal: activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) - activeSale.discount,
+        cashier: currentUser?.name || "Unknown",
+      };
 
-      // Trigger print after small delay to ensure state is set
-      // setTimeout(() => {
-      //   handlePrint();
-      // }, 300);
+      setInvoiceData(newInvoiceData);
+
+      // Print after a small delay to ensure DOM updates
+      setTimeout(() => {
+        handlePrint();
+      }, 300);
 
       // Reset current sale
       setSalesInstances((prev) =>
@@ -415,11 +434,22 @@ export default function SalesPage() {
         <ArrowUpwardIcon />
       </Fab>
 
-      {invoiceData && (
-        <div style={{ display: "none" }}>
-          <InvoicePrint ref={printRef} invoiceData={invoiceData} />
-        </div>
-      )}
+      <div style={{ display: "none" }}>
+        {invoiceData && (
+          <PosReceipt
+            ref={receiptRef}
+            invoiceNumber={invoiceData.invoiceNumber}
+            section={invoiceData.section}
+            date={invoiceData.date}
+            customerName={invoiceData.customerName}
+            customerMobile={invoiceData.customerMobile}
+            items={invoiceData.items}
+            discount={invoiceData.discount}
+            grandTotal={invoiceData.grandTotal}
+            cashier={invoiceData.cashier}
+          />
+        )}
+      </div>
     </Box>
   );
 }

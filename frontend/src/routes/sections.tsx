@@ -27,6 +27,7 @@ export const PurchasePage = lazy(() => import('src/pages/purchase'));
 export const SalesLayout = lazy(() => import('src/sections/sales/sales-layout'));
 export const SalesMenuPage = lazy(() => import('src/sections/sales/sales-menu'));
 export const SalesPage = lazy(() => import('src/pages/sales'));
+export const SalesReportPage = lazy(() => import('src/sections/sales/sales-report'));
 
 export const SettingsView = lazy(() => import('src/pages/settings'));
 export const SettingsLayout = lazy(() => import('src/pages/settings/settings-layout'));
@@ -75,7 +76,7 @@ export const routesSection: RouteObject[] = [
       { path: 'category', element: <CategoryPage /> },
       { path: 'location', element: <LocationPage /> },
       { path: 'purchase', element: <PurchasePage /> },
-      { path: 'sales', element: <SalesPage /> },
+      // { path: 'sales', element: <SalesPage /> },
       {
         path: 'settings',
         element: <SettingsLayout />,
@@ -92,6 +93,7 @@ export const routesSection: RouteObject[] = [
         children: [
           { index: true, element: <SalesMenuPage /> },
           { path: 'sales', element: <SalesPage /> },
+          { path: 'sales-report', element: <SalesReportPage /> },
         ],
       },
     ],

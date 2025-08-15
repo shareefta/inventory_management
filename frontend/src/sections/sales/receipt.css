@@ -1,0 +1,127 @@
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.receipt {
+  width: 80mm;
+  font-family: "Courier New", monospace;
+  font-size: 13px;      /* Slightly larger for readability */
+  line-height: 1.4;     /* More space between rows */
+  padding: 5px;
+  margin: 0 auto;
+  color: #000;           /* Strong black for darkness */
+  font-weight: 500;      /* Slightly bolder for printing */
+}
+
+.receipt,
+.receipt * {
+  page-break-inside: avoid;
+}
+
+.receipt-header {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.receipt-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.receipt-info {
+  text-align: center;
+  font-size: 12px;
+}
+
+.receipt-customer {
+  font-size: 12px;
+  margin: 2px 0;
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* Forces fixed column widths */
+  font-size: 12px;
+}
+
+.receipt-table th,
+.receipt-table td {
+  padding: 3px 4px; /* Add spacing between columns */
+}
+
+/* Column widths & alignment */
+.receipt-table th:nth-child(1),
+.receipt-table td:nth-child(1) {
+  width: 50%;            /* Product */
+  white-space: normal;   /* Wrap long names */
+  word-wrap: break-word;
+}
+
+.receipt-table th:nth-child(2),
+.receipt-table td:nth-child(2) {
+  width: 15%;            /* Qty */
+  text-align: center;
+}
+
+.receipt-table th:nth-child(3),
+.receipt-table td:nth-child(3) {
+  width: 15%;            /* Price */
+  text-align: right;
+}
+
+.receipt-table th:nth-child(4),
+.receipt-table td:nth-child(4) {
+  width: 20%;            /* Total */
+  text-align: right;
+}
+
+/* Summary */
+.receipt-summary {
+  margin-top: 6px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.summary-row span {
+  display: inline-block;
+  min-width: 60px;     /* Align numbers */
+  text-align: right;
+}
+
+.summary-row.total {
+  font-weight: bold;
+  font-size: 14px;
+  border-top: 1px dashed black;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.receipt-footer {
+  text-align: center;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Print adjustments */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .receipt {
+    color: #000 !important;   /* Ensure darker print */
+    font-weight: 500;
+  }
+}

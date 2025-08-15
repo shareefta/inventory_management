@@ -36,12 +36,14 @@ export interface Sale {
   id: number;
   channel: number;
   section: number;
+  invoice_number: string;
   sale_datetime?: string;
   customer_name?: string;
   customer_mobile?: string;
   payment_mode?: "Cash" | "Credit" | "Online";
   discount?: number;
   total_amount?: number;
+  created_by?: string;
   items?: SaleItem[];
 }
 

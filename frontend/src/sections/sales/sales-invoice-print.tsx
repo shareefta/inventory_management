@@ -1,63 +1,113 @@
-// InvoicePrint.tsx
+import "./receipt.css";
+
+import type { SalesSection } from "src/api/sales";
+
 import React, { forwardRef } from "react";
 
-interface InvoicePrintProps {
-  invoiceData: any;
+export interface InvoicePrintProps {
+  invoiceNumber: string;
+  section: SalesSection;
+  date: string;
+  customerName?: string;
+  customerMobile?: string;
+  items: {
+    name: string;
+    qty: number;
+    price: number;
+    total: number;
+  }[];
+  discount: number;
+  grandTotal: number;
+  cashier: string;
 }
 
-const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
-  ({ invoiceData }, ref) => (
-    <div
-      ref={ref}
-      style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}
-    >
-      {/* 1. Section address */}
-      <h2>{invoiceData.section.name}</h2>
-      <p>{invoiceData.section.address}</p>
+const PosReceipt = forwardRef<HTMLDivElement, InvoicePrintProps>(
+  (
+    {
+      invoiceNumber,
+      section,
+      date,
+      customerName,
+      customerMobile,
+      items,
+      discount,
+      grandTotal,
+      cashier,
+    },
+    ref
+  ) => (
+    <div ref={ref} className="receipt">
+      {/* Header */}
+      <div className="receipt-header">
+        <h2>{section.name}</h2>
+        <p>{section.channel?.name}</p>
+      </div>
 
-      {/* 2. Customer's data */}
-      <h3>Customer Info</h3>
-      <p>Name: {invoiceData.customer_name}</p>
-      <p>Mobile: {invoiceData.customer_mobile}</p>
+      <div className="receipt-info">
+        <p>Invoice: {invoiceNumber}</p>
+        <p>Date: {date}</p>
+        <p>Cashier: {cashier}</p>
+      </div>
 
-      {/* 3. Sales items */}
-      <h3>Items</h3>
-      <table width="100%" border={1} cellPadding={5}>
+      <hr />
+
+      {/* Customer Info */}
+      {customerName && <div className="receipt-customer">Customer: {customerName}</div>}
+      {customerMobile && <div className="receipt-customer">Mobile: {customerMobile}</div>}
+
+      <hr />
+
+      {/* Items Table */}
+      <table className="receipt-table">
         <thead>
           <tr>
-            <th>Sl. No.</th>
-            <th>Product</th>
+            <th>Item</th>
             <th>Qty</th>
-            <th>Rate</th>
+            <th>Price</th>
             <th>Total</th>
           </tr>
         </thead>
         <tbody>
-          {invoiceData.items_write.map((item: any, idx: number) => (
+          {items.map((it, idx) => (
             <tr key={idx}>
-              <td>{idx + 1}</td>
-              <td>{item.product_name}</td>
-              <td>{item.quantity}</td>
-              <td>{item.price.toFixed(2)}</td>
-              <td>{item.total.toFixed(2)}</td>
+              {/* Limit long names to 20 chars per line */}
+              <td className="item-name">
+                {it.name.length > 20
+                  ? it.name.match(/.{1,20}/g)?.map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))
+                  : it.name}
+              </td>
+              <td className="qty">{it.qty}</td>
+              <td className="price">{it.price.toFixed(2)}</td>
+              <td className="total">{it.total.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* 4. Discount & 5. Grand Total */}
-      <h3>Summary</h3>
-      <p>Discount: {invoiceData.discount.toFixed(2)}</p>
-      <p>Grand Total: {invoiceData.total_amount.toFixed(2)}</p>
+      <hr />
 
-      {/* 6. Date */}
-      <p>Date: {new Date().toLocaleString()}</p>
+      {/* Summary */}
+      <div className="receipt-summary">
+        <div className="summary-row">
+          <span>Discount</span>
+          <span>{discount.toFixed(2)}</span>
+        </div>
+        <div className="summary-row total">
+          <span>Grand Total</span>
+          <span>{grandTotal.toFixed(2)}</span>
+        </div>
+      </div>
 
-      {/* 7. User info */}
-      <p>Sold by: {invoiceData.user}</p>
+      <hr />
+
+      {/* Footer */}
+      <div className="receipt-footer">
+        Thank you for shopping with us!
+      </div>
     </div>
   )
 );
 
-
-export default InvoicePrint;
+export default PosReceipt;
