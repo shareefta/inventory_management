@@ -5,13 +5,23 @@ import axios from 'axios';
 const BASE_URL = 'https://razaworld.uk/api/products/products/';
 const BARCODE_URL = 'https://razaworld.uk/api/products/scan/';
 
-export async function getProducts(): Promise<ProductProps[]> {
+function getAuthHeaders(isFormData = false) {
   const token = localStorage.getItem('token');
   if (!token) throw new Error('No auth token');
 
-  const response = await axios.get(BASE_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  return {
+    Authorization: `Bearer ${token}`,
+    ...(isFormData ? { 'Content-Type': 'multipart/form-data' } : {}),
+  };
+}
+
+function triggerProductUpdate() {
+  window.dispatchEvent(new Event('product-update'));
+}
+
+// ---- GET ALL PRODUCTS ----
+export async function getProducts(): Promise<ProductProps[]> {
+  const response = await axios.get(BASE_URL, { headers: getAuthHeaders() });
 
   return response.data.map((item: any) => ({
     id: item.id,
@@ -21,8 +31,11 @@ export async function getProducts(): Promise<ProductProps[]> {
     serialNumber: item.serial_number,
     variants: item.variants,
     category: item.category,
-    rate: item.rate,
-    locations: item.locations,
+    rate: Number(item.rate),
+    locations: item.locations.map((l: any) => ({
+      location: l.location,
+      quantity: l.quantity,
+    })),
     total_quantity: item.total_quantity,
     active: item.active,
     image: item.image,
@@ -34,12 +47,10 @@ export async function getProducts(): Promise<ProductProps[]> {
   }));
 }
 
+// ---- GET PRODUCT BY BARCODE ----
 export async function getProductByBarcode(barcode: string): Promise<ProductProps> {
-  const token = localStorage.getItem('token');
-  if (!token) throw new Error('No auth token');
-
   const response = await axios.get(BARCODE_URL, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: getAuthHeaders(),
     params: { barcode },
   });
 
@@ -53,8 +64,11 @@ export async function getProductByBarcode(barcode: string): Promise<ProductProps
     serialNumber: item.serial_number,
     variants: item.variants,
     category: item.category,
-    rate: item.rate,
-    locations: item.locations,
+    rate: Number(item.rate),
+    locations: item.locations.map((l: any) => ({
+      location: l.location,
+      quantity: l.quantity,
+    })),
     total_quantity: item.total_quantity,
     active: item.active,
     image: item.image,
@@ -66,82 +80,57 @@ export async function getProductByBarcode(barcode: string): Promise<ProductProps
   };
 }
 
+// ---- CREATE PRODUCT ----
 export async function createProduct(data: FormData): Promise<ProductProps> {
-  const token = localStorage.getItem('token');
-
   if (data.has('locations')) {
     const locations = data.get('locations');
     if (typeof locations !== 'string') {
       data.set('locations', JSON.stringify(locations));
     }
   }
-   
-  const response = await axios.post(BASE_URL, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'multipart/form-data',
-    },
-  });
 
-  window.dispatchEvent(new Event('product-update'));
-  
+  const response = await axios.post(BASE_URL, data, { headers: getAuthHeaders(true) });
+
+  triggerProductUpdate();
   return response.data;
 }
 
+// ---- CATEGORIES ----
 export async function getCategories() {
-  const token = localStorage.getItem('token');
   const response = await axios.get('https://razaworld.uk/api/products/categories/', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getAuthHeaders(),
   });
-
   return response.data;
 }
 
+// ---- LOCATIONS ----
 export async function getLocations() {
-  const token = localStorage.getItem('token');
   const response = await axios.get('https://razaworld.uk/api/products/locations/', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getAuthHeaders(),
   });
   return response.data;
 }
 
+// ---- UPDATE PRODUCT ----
 export async function updateProduct(id: string, data: any, isFormData = false) {
-  const token = localStorage.getItem('token');
-  const headers: any = {
-    Authorization: `Bearer ${token}`,
-  };
-
-  if (!isFormData) {
-    headers['Content-Type'] = 'application/json';
-  }
-
   const response = await axios.put(`${BASE_URL}${id}/`, data, {
-    headers,
+    headers: getAuthHeaders(isFormData),
   });
 
-  // Now dispatch event after success
-  window.dispatchEvent(new Event('product-update'));
-
+  triggerProductUpdate();
   return response.data;
 }
 
-export const deleteProduct = async (id: string) => {
-  const token = localStorage.getItem('token');
+// ---- DELETE PRODUCT ----
+export async function deleteProduct(id: string) {
   try {
     const response = await axios.delete(`${BASE_URL}${id}/`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeaders(),
     });
-    console.log('Delete response:', response);
-    window.dispatchEvent(new Event('product-update'));
+    triggerProductUpdate();
     return response;
   } catch (error) {
     console.error('Delete API error:', error);
     throw error;
   }
-};
+}

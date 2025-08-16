@@ -71,6 +71,9 @@ const PosReceipt = forwardRef<HTMLDivElement, InvoicePrintProps>(
             <th className="amount">Amount</th>
           </tr>
         </thead>
+
+        <hr />
+
         <tbody>
           {items.map((it, idx) => (
             <>

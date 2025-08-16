@@ -19,6 +19,11 @@ class SectionProductPriceAdmin(admin.ModelAdmin):
     list_filter = ("section__channel", "section")
     search_fields = ("product__item_name", "product__unique_id", "section__name")
 
+@admin.register(SaleItem)
+class SaleItemAdmin(admin.ModelAdmin):
+    list_display = ("product", "product_name", "product_barcode", "product_brand", "product_variant",
+        "serial_number", "price", "quantity", "total", "location")
+
 class SaleItemInline(admin.TabularInline):
     model = SaleItem
     extra = 0
@@ -29,7 +34,7 @@ class SaleItemInline(admin.TabularInline):
 
 @admin.register(Sale)
 class SaleAdmin(admin.ModelAdmin):
-    list_display = ("id", "sale_datetime", "channel", "section", "payment_mode", "total_amount", "discount", "created_by")
+    list_display = ("id", "sale_datetime", "channel", "section", "invoice_number", "payment_mode", "total_amount", "discount", "created_by")
     list_filter = ("channel", "section", "payment_mode", "sale_datetime")
     search_fields = ("customer_name", "customer_mobile")
     inlines = [SaleItemInline]

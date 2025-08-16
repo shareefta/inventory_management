@@ -9,6 +9,7 @@ import { _posts, _tasks, _traffic, _timeline } from 'src/_mock';
 
 import { AnalyticsNews } from '../analytics-news';
 import { AnalyticsTasks } from '../analytics-tasks';
+import { ProductSummaryCard } from '../analytics-widget-metrics';
 import { AnalyticsCurrentVisits } from '../analytics-current-visits';
 import { AnalyticsOrderTimeline } from '../analytics-order-timeline';
 import { AnalyticsWebsiteVisits } from '../analytics-website-visits';
@@ -21,21 +22,39 @@ import { AnalyticsConversionRates } from '../analytics-conversion-rates';
 
 export function OverviewAnalyticsView() {
   const [activeProductCount, setActiveProductCount] = useState<number>(0);
+  const [totalQuantity, setTotalQuantity] = useState<number>(0);
+  const [totalCost, setTotalCost] = useState<number>(0);
 
-  const fetchProductCount = async () => {
-      try {
-        const products = await getProducts();
-        const activeCount = products.filter((p) => p.active).length;
-        setActiveProductCount(activeCount);
+  const fetchProductStats = async () => {
+    try {
+      const products = await getProducts();
 
-      } catch (error) {
-        console.error('Failed to fetch product count:', error);
-      }
-    };
-  
-    useEffect(() => {
-      fetchProductCount();
-    }, []);
+      // Active products
+      const activeCount = products.filter((p) => p.active).length;
+      setActiveProductCount(activeCount);
+
+      // Total quantity across all locations
+      const quantitySum = products.reduce((acc, p) => {
+        const productTotalQty = p.locations.reduce((qAcc, loc) => qAcc + (loc.quantity || 0), 0);
+        return acc + productTotalQty;
+      }, 0);
+      setTotalQuantity(quantitySum);
+
+      // Total cost = sum of (rate * quantity at each location)
+      const costSum = products.reduce((acc, p) => {
+        const productCost = p.locations.reduce((cAcc, loc) => cAcc + (loc.quantity || 0) * (p.rate || 0), 0);
+        return acc + productCost;
+      }, 0);
+      setTotalCost(costSum);
+
+    } catch (error) {
+      console.error("Failed to fetch product stats:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProductStats();
+  }, []);
 
   return (
     <DashboardContent maxWidth="xl">
@@ -72,16 +91,13 @@ export function OverviewAnalyticsView() {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <AnalyticsWidgetSummary
+          <ProductSummaryCard
             title="Total Products"
-            percent={2.8}
-            total={activeProductCount}
+            total_products={activeProductCount}
+            total_stock={totalQuantity}
+            stock_value={totalCost}
             color="warning"
             icon={<img alt="Total Products" src="/assets/icons/glass/ic-glass-buy.svg" />}
-            chart={{
-              categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-              series: [40, 70, 50, 28, 70, 75, 7, 64],
-            }}
           />
         </Grid>
 
