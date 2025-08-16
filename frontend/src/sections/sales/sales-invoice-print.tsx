@@ -2,7 +2,7 @@ import "./receipt.css";
 
 import type { SalesSection } from "src/api/sales";
 
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 
 export interface InvoicePrintProps {
   invoiceNumber: string;
@@ -12,6 +12,7 @@ export interface InvoicePrintProps {
   customerMobile?: string;
   items: {
     name: string;
+    barcode?: string;
     qty: number;
     price: number;
     total: number;
@@ -45,8 +46,7 @@ const PosReceipt = forwardRef<HTMLDivElement, InvoicePrintProps>(
 
       <div className="receipt-info">
         <p>Invoice: {invoiceNumber}</p>
-        <p>Date: {date}</p>
-        <p>Cashier: {cashier}</p>
+        <p>Date: {date}</p>        
       </div>
 
       <hr />
@@ -57,31 +57,36 @@ const PosReceipt = forwardRef<HTMLDivElement, InvoicePrintProps>(
 
       <hr />
 
-      {/* Items Table */}
+      {/* Items Table (Two-row per item) */}
       <table className="receipt-table">
         <thead>
           <tr>
-            <th>Item</th>
-            <th>Qty</th>
-            <th>Price</th>
-            <th>Total</th>
+            <th className="sl">Sl</th>
+            <th className="item_th">Item Name</th>
+            <th className="qty">Qty</th>
+          </tr>
+          <tr>
+            <th className="barcode_th">Barcode</th>
+            <th className="qty">Unit Price</th>
+            <th className="amount">Amount</th>
           </tr>
         </thead>
         <tbody>
           {items.map((it, idx) => (
-            <tr key={idx}>
-              {/* Limit long names to 20 chars per line */}
-              <td className="item-name">
-                {it.name.length > 20
-                  ? it.name.match(/.{1,20}/g)?.map((line, i) => (
-                      <div key={i}>{line}</div>
-                    ))
-                  : it.name}
-              </td>
-              <td className="qty">{it.qty}</td>
-              <td className="price">{it.price.toFixed(2)}</td>
-              <td className="total">{it.total.toFixed(2)}</td>
-            </tr>
+            <>
+              {/* First row: Sl, Item Name, Qty */}
+              <tr key={`row1-${idx}`}>
+                <td className="sl">{idx + 1}.</td>
+                <td className="item">{it.name.length > 25 ? it.name.slice(0, 25) + "..." : it.name}</td>
+                <td className="qty">{it.qty}</td>
+              </tr>
+              {/* Second row: Barcode, Unit Price, Amount */}
+              <tr key={`row2-${idx}`}>
+                <td className="item barcode">{it.barcode || "-"}</td>
+                <td className="qty">{it.price.toFixed(2)}</td>
+                <td className="amount">{it.total.toFixed(2)}</td>
+              </tr>
+            </>
           ))}
         </tbody>
       </table>
@@ -103,6 +108,9 @@ const PosReceipt = forwardRef<HTMLDivElement, InvoicePrintProps>(
       <hr />
 
       {/* Footer */}
+      <div className="cashier-name">
+        <p>Cashier: {cashier}</p>
+      </div>
       <div className="receipt-footer">
         Thank you for shopping with us!
       </div>
