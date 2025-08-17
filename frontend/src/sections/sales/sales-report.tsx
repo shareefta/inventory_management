@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 
-import EditIcon from "@mui/icons-material/Edit";
-import CloseIcon from "@mui/icons-material/Close";
-import DeleteIcon from "@mui/icons-material/Delete";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import {
   Box,
   Table,
@@ -12,19 +10,25 @@ import {
   TableRow,
   TableContainer,
   Paper,
-  Button,
+  Typography,
+  TextField,
+  MenuItem,
+  Breadcrumbs,
+  Link,
+  Stack,
+  Select,
+  InputLabel,
+  FormControl,
+  Fab,
+  Pagination,
   Dialog,
   DialogTitle,
   DialogContent,
-  Typography,
-  IconButton,
-  TextField,
-  MenuItem,
+  DialogActions,
+  Button as MuiButton,
 } from "@mui/material";
 
 import { getSales, Sale, deleteSale, getSections, SalesSection } from "src/api/sales";
-
-import SaleEditDialog from "src/sections/sales/sales-edit-dialog";
 
 const paymentModes = ["Cash", "Credit", "Online"] as const;
 
@@ -33,18 +37,18 @@ const SalesReportPage = () => {
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
   const [sections, setSections] = useState<SalesSection[]>([]);
 
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [editSale, setEditSale] = useState<Sale | null>(null);
-
   const [filterSection, setFilterSection] = useState<number | "">("");
   const [filterPayment, setFilterPayment] = useState<typeof paymentModes[number] | "">("");
   const [filterStartDate, setFilterStartDate] = useState<string>("");
   const [filterEndDate, setFilterEndDate] = useState<string>("");
 
-  const sectionMap = useMemo(
-    () => Object.fromEntries(sections.map((s) => [s.id, s.name])),
-    [sections]
-  );
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteSaleId, setDeleteSaleId] = useState<number | null>(null);
+
+  const [filterInvoiceMobile, setFilterInvoiceMobile] = useState("");
 
   useEffect(() => {
     loadSales();
@@ -62,77 +66,168 @@ const SalesReportPage = () => {
     getSections().then((res) => setSections(res.data));
   };
 
-  // --- Apply filters ---
+  const sectionMap = useMemo(
+    () => Object.fromEntries(sections.map((s) => [s.id, s.name])),
+    [sections]
+  );
+
   useEffect(() => {
     let filtered = [...sales];
 
     if (filterSection) filtered = filtered.filter((s) => s.section === filterSection);
     if (filterPayment) filtered = filtered.filter((s) => s.payment_mode === filterPayment);
     if (filterStartDate)
-      filtered = filtered.filter(
-        (s) => s.sale_datetime && new Date(s.sale_datetime) >= new Date(filterStartDate)
-      );
+      filtered = filtered.filter((s) => s.sale_datetime && new Date(s.sale_datetime) >= new Date(filterStartDate));
     if (filterEndDate)
+      filtered = filtered.filter((s) => s.sale_datetime && new Date(s.sale_datetime) <= new Date(filterEndDate));
+    if (filterInvoiceMobile)
       filtered = filtered.filter(
-        (s) => s.sale_datetime && new Date(s.sale_datetime) <= new Date(filterEndDate)
+        (s) =>
+          s.invoice_number?.toLowerCase().includes(filterInvoiceMobile.toLowerCase()) ||
+          s.customer_mobile?.includes(filterInvoiceMobile)
       );
 
     setFilteredSales(filtered);
-  }, [sales, filterSection, filterPayment, filterStartDate, filterEndDate]);
+    setPage(1);
+  }, [sales, filterSection, filterPayment, filterStartDate, filterEndDate, filterInvoiceMobile]);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this sale?")) return;
+  const handleDeleteClick = (id: number) => {
+    setDeleteSaleId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteSaleId) return;
     try {
-      await deleteSale(id);
+      await deleteSale(deleteSaleId);
       loadSales();
+      setDeleteDialogOpen(false);
     } catch (error) {
       alert("Failed to delete sale");
       console.error(error);
     }
   };
 
-  const totalSales = useMemo(
-    () => filteredSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0),
-    [filteredSales]
-  );
+  // --- Totals (Dependent only on Section + Payment Mode filters) ---
+  const today = new Date();
+
+  const salesForTotals = sales.filter((s) => {
+    if (filterSection && s.section !== filterSection) return false;
+    if (filterPayment && s.payment_mode !== filterPayment) return false;
+    return true;
+  });
+
+  const totalDay = salesForTotals
+    .filter((s) => s.sale_datetime && new Date(s.sale_datetime).toDateString() === today.toDateString())
+    .reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+
+  const totalMonth = salesForTotals
+    .filter((s) => {
+      if (!s.sale_datetime) return false;
+      const d = new Date(s.sale_datetime);
+      return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    })
+    .reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+
+  // --- Financial year: April 1 – March 31 ---
+  const fyStart = today.getMonth() + 1 >= 4
+    ? new Date(today.getFullYear(), 3, 1) // April 1 current year
+    : new Date(today.getFullYear() - 1, 3, 1); // April 1 previous year
+
+  const fyEnd = new Date(fyStart.getFullYear() + 1, 2, 31); // March 31 next year
+
+  const totalFinancialYear = salesForTotals
+    .filter((s) => {
+      if (!s.sale_datetime) return false;
+      const d = new Date(s.sale_datetime);
+      return d >= fyStart && d <= fyEnd;
+    })
+    .reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+
+  const fyLabel = `${fyStart.toLocaleString("default", { month: "long" })} ${fyStart.getFullYear()} - ${fyEnd.toLocaleString("default", { month: "long" })} ${fyEnd.getFullYear()}`;
+
+  // Pagination
+  const pageCount = Math.ceil(filteredSales.length / rowsPerPage);
+  const paginatedSales = filteredSales.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+
+  const handleClearFilters = () => {
+    setFilterSection("");
+    setFilterPayment("");
+    setFilterStartDate("");
+    setFilterEndDate("");
+    setFilterInvoiceMobile("");
+  };
 
   return (
     <Box p={2}>
-      <Typography variant="h5" mb={2}>
-        Sales Report - Total: {totalSales.toFixed(2)}
-      </Typography>
+      {/* Breadcrumb */}
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <Link href="/sales" underline="hover">Sales Menu</Link>
+        <Typography>Sales Report</Typography>
+      </Breadcrumbs>
 
-      {/* --- Filters --- */}
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap">
-        <TextField
-          select
-          label="Section"
-          size="small"
-          value={filterSection}
-          onChange={(e) => setFilterSection(Number(e.target.value) || "")}
-        >
-          <MenuItem value="">All</MenuItem>
-          {sections.map((sec) => (
-            <MenuItem key={sec.id} value={sec.id}>
-              {sec.name}
-            </MenuItem>
-          ))}
-        </TextField>
+      {/* Total Sales Cards */}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} mb={2}>
+        <Paper sx={{ p: 2, flex: 1, textAlign: "center", bgcolor: "#e3f2fd" }}>
+          <Typography variant="subtitle2">Today</Typography>
+          <Typography variant="h6" color="primary">{totalDay.toFixed(2)}</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1, textAlign: "center", bgcolor: "#fce4ec" }}>
+          <Typography variant="subtitle2">
+            {today.toLocaleString("default", { month: "long" })} {today.getFullYear()}
+          </Typography>
+          <Typography variant="h6" color="secondary">{totalMonth.toFixed(2)}</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1, textAlign: "center", bgcolor: "#e8f5e9" }}>
+          <Typography variant="subtitle2">{fyLabel}</Typography>
+          <Typography variant="h6" color="success.main">{totalFinancialYear.toFixed(2)}</Typography>
+        </Paper>
+      </Stack>
 
+      {/* Filters */}
+      <Stack
+        direction="row"
+        flexWrap="wrap"
+        spacing={2}
+        mb={2}
+        alignItems="center"
+        sx={{ gap: 2 }}
+      >
         <TextField
-          select
-          label="Payment Mode"
+          label="Search Invoice / Mobile"
           size="small"
-          value={filterPayment}
-          onChange={(e) => setFilterPayment(e.target.value as any)}
-        >
-          <MenuItem value="">All</MenuItem>
-          {paymentModes.map((mode) => (
-            <MenuItem key={mode} value={mode}>
-              {mode}
-            </MenuItem>
-          ))}
-        </TextField>
+          value={filterInvoiceMobile}
+          onChange={(e) => setFilterInvoiceMobile(e.target.value)}
+          sx={{ minWidth: 180, flex: "1 1 180px" }}
+        />
+
+        <FormControl size="small" sx={{ minWidth: 150, flex: "1 1 150px" }}>
+          <InputLabel>Section</InputLabel>
+          <Select
+            value={filterSection}
+            onChange={(e) => setFilterSection(Number(e.target.value) || "")}
+            label="Section"
+          >
+            <MenuItem value="">All</MenuItem>
+            {sections.map((sec) => (
+              <MenuItem key={sec.id} value={sec.id}>{sec.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 150, flex: "1 1 150px" }}>
+          <InputLabel>Payment Mode</InputLabel>
+          <Select
+            value={filterPayment}
+            onChange={(e) => setFilterPayment(e.target.value as any)}
+            label="Payment Mode"
+          >
+            <MenuItem value="">All</MenuItem>
+            {paymentModes.map((mode) => (
+              <MenuItem key={mode} value={mode}>{mode}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         <TextField
           label="Start Date"
@@ -141,6 +236,7 @@ const SalesReportPage = () => {
           InputLabelProps={{ shrink: true }}
           value={filterStartDate}
           onChange={(e) => setFilterStartDate(e.target.value)}
+          sx={{ minWidth: 150, flex: "1 1 150px" }}
         />
 
         <TextField
@@ -150,122 +246,141 @@ const SalesReportPage = () => {
           InputLabelProps={{ shrink: true }}
           value={filterEndDate}
           onChange={(e) => setFilterEndDate(e.target.value)}
+          sx={{ minWidth: 150, flex: "1 1 150px" }}
         />
-      </Box>
 
-      {/* --- Sales Table --- */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Sl. No.</TableCell>
-              <TableCell>Section</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Invoice No.</TableCell>
-              <TableCell align="right">Total Amount</TableCell>
-              <TableCell>Created By</TableCell>
-              <TableCell>Action</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredSales.map((sale, index) => (
-              <TableRow key={sale.id}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>{sectionMap[sale.section] || "Unknown"}</TableCell>
-                <TableCell>
-                  {sale.sale_datetime ? new Date(sale.sale_datetime).toLocaleString() : "-"}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="text"
-                    onClick={() => setSelectedSale(sale)}
-                  >
-                    {sale.invoice_number}
-                  </Button>
-                </TableCell>
-                <TableCell align="right">
-                  {Number(sale.total_amount || 0).toFixed(2)}
-                </TableCell>
-                <TableCell>{sale.created_by || "-"}</TableCell>
-                <TableCell>
-                  <IconButton
-                    color="primary"
-                    onClick={() => setEditSale(sale)}
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    color="error"
-                    onClick={() => handleDelete(sale.id!)}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
+        <FormControl size="small" sx={{ minWidth: 100, flex: "1 1 100px" }}>
+          <InputLabel>Rows per page</InputLabel>
+          <Select
+            value={rowsPerPage}
+            onChange={(e) => setRowsPerPage(Number(e.target.value))}
+            label="Rows per page"
+          >
+            {[10, 25, 50, 100].map((n) => (
+              <MenuItem key={n} value={n}>{n}</MenuItem>
             ))}
-          </TableBody>
-        </Table>
+          </Select>
+        </FormControl>
+
+        <MuiButton
+          variant="outlined"
+          color="secondary"
+          onClick={handleClearFilters}
+          sx={{ flex: "1 1 120px" }}
+        >
+          Clear Filters
+        </MuiButton>
+      </Stack>
+
+      {/* Sales Table */}
+      <TableContainer component={Paper} sx={{ maxHeight: 650 }}>
+        {paginatedSales.length > 0 ? (
+          <Table stickyHeader>
+            <TableHead sx={{ backgroundColor: "#1976d2" }}>
+              <TableRow>
+                {[
+                  "Sl. No.",
+                  "Section",
+                  "Date & Time",
+                  "Invoice No.",
+                  "Customer Mobile",
+                  "Total Amount",
+                  "Payment Mode",
+                  "Sold By",                  
+                  "Action",
+                ].map((h) => (
+                  <TableCell
+                    key={h}
+                    sx={{
+                      color: "black",
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      border: "1px solid #ddd", // light border
+                    }}
+                  >
+                    {h}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedSales.map((sale, index) => (
+                <TableRow
+                  key={sale.id}
+                  hover
+                  sx={{
+                    bgcolor: index % 2 === 0 ? "#f5f5f5" : "#fff",
+                    "&:hover": { bgcolor: "#e3f2fd" },
+                  }}
+                >
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {(page - 1) * rowsPerPage + index + 1}
+                  </TableCell>
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {sectionMap[sale.section] || "Unknown"}
+                  </TableCell>
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {sale.sale_datetime ? new Date(sale.sale_datetime).toLocaleString() : "-"}
+                  </TableCell>
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {sale.invoice_number}
+                  </TableCell>                  
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {sale.customer_mobile || "-"}
+                  </TableCell>
+                  <TableCell align="right" sx={{ border: "1px solid #ddd" }}>
+                    {Number(sale.total_amount || 0).toFixed(2)}
+                  </TableCell>
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {sale.payment_mode || "-"}
+                  </TableCell>
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    {sale.created_by || "-"}
+                  </TableCell>
+                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                    <MuiButton
+                      variant="contained"
+                      color="error"
+                      size="small"
+                      onClick={() => handleDeleteClick(sale.id!)}
+                    >
+                      Delete
+                    </MuiButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+            <Paper elevation={2} sx={{ px: 4, py: 3, bgcolor: "#f5f5f5", borderRadius: 2, textAlign: "center" }}>
+              <Typography variant="h6" color="textWarning">No Sales found</Typography>
+            </Paper>
+          </Box>
+        )}
       </TableContainer>
 
-      {/* --- Sale Details Dialog --- */}
-      <Dialog
-        open={!!selectedSale}
-        onClose={() => setSelectedSale(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          Sale Details - {selectedSale?.invoice_number}
-          <IconButton
-            aria-label="close"
-            onClick={() => setSelectedSale(null)}
-            sx={{ position: "absolute", right: 8, top: 8 }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers>
-          {selectedSale?.items?.length ? (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Product</TableCell>
-                  <TableCell>Barcode</TableCell>
-                  <TableCell>Price</TableCell>
-                  <TableCell>Quantity</TableCell>
-                  <TableCell>Total</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {selectedSale.items.map((item) => (
-                  <TableRow key={item.product || item.product_name}>
-                    <TableCell>{item.product_name}</TableCell>
-                    <TableCell>{item.product_barcode || "-"}</TableCell>
-                    <TableCell>{Number(item.price).toFixed(2)}</TableCell>
-                    <TableCell>{Number(item.quantity).toFixed(3)}</TableCell>
-                    <TableCell>{Number(item.total).toFixed(2)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <Typography>No items found for this sale.</Typography>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* --- Sale Edit Dialog --- */}
-      {editSale && (
-        <SaleEditDialog
-          sale={editSale}
-          open={!!editSale}
-          onClose={() => setEditSale(null)}
-          onSaved={() => {
-            setEditSale(null);
-            loadSales();
-          }}
-        />
+      {/* Pagination + Go to top */}
+      {paginatedSales.length > 0 && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mt={2}>
+          <Pagination count={pageCount} page={page} onChange={(_, value) => setPage(value)} color="primary" />
+          <Fab color="primary" size="small" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+            <ArrowUpwardIcon />
+          </Fab>
+        </Stack>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this sale?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <MuiButton onClick={() => setDeleteDialogOpen(false)}>Cancel</MuiButton>
+          <MuiButton color="error" variant="contained" onClick={handleConfirmDelete}>Delete</MuiButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

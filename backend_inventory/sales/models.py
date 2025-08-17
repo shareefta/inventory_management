@@ -36,6 +36,11 @@ class SalesSection(models.Model):
     channel = models.ForeignKey(SalesChannel, on_delete=models.CASCADE, related_name="sections")
     name = models.CharField(max_length=100)
     location = models.ForeignKey("products.Location", on_delete=models.PROTECT, related_name="sales_sections")
+    building_no = models.CharField(max_length=50, blank=True, null=True)
+    street_no = models.CharField(max_length=50, blank=True, null=True)
+    zone_no = models.CharField(max_length=50, blank=True, null=True)
+    short_name = models.CharField(max_length=20, blank=True, null=True)
+    logo = models.ImageField(upload_to="section_logos/", blank=True, null=True)
 
     class Meta:
         unique_together = (("channel", "name"),)
@@ -62,7 +67,7 @@ class Sale(models.Model):
     PAYMENT_MODES = [
         ("Cash", "Cash"),
         ("Credit", "Credit"),
-        ("Online", "Online"),  # TAP / gateways
+        ("Online", "Online"),
     ]
 
     invoice_number = models.CharField(max_length=50, blank=True, null=True, unique=True)

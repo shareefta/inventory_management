@@ -202,11 +202,23 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
                   <Grid size={{ sm:10, md: 4 }} sx={{ minWidth: 150 }}>
                     <Autocomplete
                       options={products}
-                      getOptionLabel={(option) => option.itemName}
-                      value={products.find(p => p.id === item.product) || null}
-                      onChange={(_, newValue) =>
-                        handleItemChange(index, 'product', newValue ? newValue.id : '')
-                      }
+                      // Dropdown label (name + barcode + serial)
+                      getOptionLabel={(option) => {
+                        let label = option.itemName;
+                        if (option.uniqueId) label += ` (Barcode: ${option.uniqueId})`;
+                        if (option.serialNumber) label += ` (SN: ${option.serialNumber})`;
+                        return label;
+                      }}
+
+                      // Ensure selected value shows ONLY the product name
+                      renderOption={(props, option) => (
+                        <li {...props}>
+                          {option.itemName}
+                          {option.uniqueId && <span style={{ color: "gray", marginLeft: 6 }}>Barcode: {option.uniqueId}</span>}
+                          {option.serialNumber && <span style={{ color: "gray", marginLeft: 6 }}>SN: {option.serialNumber}</span>}
+                        </li>
+                      )}
+
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -217,6 +229,23 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
                           }}
                         />
                       )}
+
+                      // Value handling
+                      value={products.find((p) => p.id === item.product) || null}
+                      onChange={(_, newValue) =>
+                        handleItemChange(index, "product", newValue ? newValue.id : "")
+                      }
+
+                      // Allow searching by name, barcode, or serial number
+                      filterOptions={(options, { inputValue }) => {
+                        const search = inputValue.toLowerCase();
+                        return options.filter(
+                          (opt) =>
+                            opt.itemName.toLowerCase().includes(search) ||
+                            (opt.uniqueId && opt.uniqueId.toLowerCase().includes(search)) ||
+                            (opt.serialNumber && opt.serialNumber.toLowerCase().includes(search))
+                        );
+                      }}
                     />
                   </Grid>
 
