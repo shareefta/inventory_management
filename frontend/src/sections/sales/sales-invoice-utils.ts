@@ -23,8 +23,8 @@ export function SaleToInvoiceProps(
       name: it.product_name,
       barcode: it.product_barcode || "-",
       qty: it.quantity,
-      price: it.price,
-      total: it.total,
+      price: Number(it.price),
+      total: Number(it.total),
     })),
   };
 }

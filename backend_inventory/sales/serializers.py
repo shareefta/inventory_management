@@ -100,6 +100,7 @@ class SaleSerializer(serializers.ModelSerializer):
             "created_by",
             "items",
             "items_write",
+            "invoice_number",
         ]
 
     def validate(self, attrs):

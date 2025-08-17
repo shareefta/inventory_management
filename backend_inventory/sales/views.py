@@ -114,7 +114,14 @@ class SaleViewSet(viewsets.ModelViewSet):
     serializer_class = SaleSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        # created_by & sale_datetime handled in serializer.create (using request.user & default)
-        serializer.context["request"] = self.request
-        serializer.save()
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sale = serializer.save()  # this runs SaleSerializer.create()
+        read_serializer = SaleSerializer(sale)  # serialize the saved sale with all fields
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+    # def perform_create(self, serializer):
+    #     # created_by & sale_datetime handled in serializer.create (using request.user & default)
+    #     serializer.context["request"] = self.request
+    #     serializer.save()

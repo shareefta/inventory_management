@@ -7,6 +7,7 @@ import { useEffect, useState, useRef } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import Autocomplete from "@mui/material/Autocomplete";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import { 
   Snackbar, Alert, Box, Breadcrumbs, Link, Typography, 
@@ -17,9 +18,10 @@ import {
 
 import { getProducts } from "src/api/products";
 import { useAuthStore } from "src/store/use-auth-store";
-import { getSections, createSale, SalesSection, getSectionPrices } from "src/api/sales";
+import { getSections, Sale, createSale, SalesSection, getSectionPrices } from "src/api/sales";
 
 import PosReceipt from "src/sections/sales/sales-invoice-print";
+import { SaleToInvoiceProps } from "src/sections/sales/sales-invoice-utils";
 
 interface CartItem {
   productId?: number;
@@ -58,6 +60,10 @@ export default function SalesPage() {
   const [products, setProducts] = useState<ProductProps[]>([]);
 
   const [paymentMode, setPaymentMode] = useState<"Cash" | "Credit" | "Online">("Cash");
+
+  const [inputValue, setInputValue] = useState("");
+  const [selectedValue, setSelectedValue] = useState<any | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
@@ -198,55 +204,39 @@ export default function SalesPage() {
       })),
       customer_name: activeSale.customerName,
       customer_mobile: activeSale.customerMobile,
-      user: currentUser?.name || "Unknown",
     };
 
     try {
       const response = await createSale(payload);
-      showSnackbar("Sale completed successfully!", "success");
 
-      const backendInvoice = response.data.invoice_number || "";
+      // Backend returns full Sale object
+      const savedSale: Sale = response.data;
 
-      // Store data for printing
-      const newInvoiceData = {
-        invoiceNumber: backendInvoice,
-        section: selectedSection,
-        date: new Date().toLocaleString(),
-        customerName: activeSale.customerName,
-        customerMobile: activeSale.customerMobile,
-        items: activeSale.cartItems.map(it => ({
-          name: it.product_name,
-          qty: it.quantity,
-          price: it.price,
-          total: it.total
-        })),
-        discount: activeSale.discount,
-        grandTotal: activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) - activeSale.discount,
-        cashier: currentUser?.name || "Unknown",
+      const invoiceProps = {
+        ...SaleToInvoiceProps(savedSale, selectedSection),
+        invoiceNumber: savedSale.invoice_number,
+        cashier: savedSale.created_by || "Unknown",
       };
 
-      setInvoiceData(newInvoiceData);
+      // // Use your utility to convert to receipt props
+      // const invoiceProps = SaleToInvoiceProps(savedSale, selectedSection);
 
-      // Print after a small delay to ensure DOM updates
-      setTimeout(() => {
-        handlePrint();
-      }, 300);
+      setInvoiceData(invoiceProps);
 
-      // Reset current sale
-      setSalesInstances((prev) =>
-        prev.map((sale) =>
-          sale.id === activeSaleId
-            ? {
-                ...sale,
-                cartItems: [],
-                discount: 0,
-                customerName: "",
-                customerMobile: "",
-                invoiceNumber: backendInvoice,
-              }
-            : sale
-        )
-      );
+      // Print
+      setTimeout(() => handlePrint(), 300);
+
+      // Remove completed sale tab
+      setSalesInstances(prev => prev.filter(s => s.id !== activeSaleId));
+
+      // Switch to first remaining tab
+      setActiveSaleId(prev => {
+        const remaining = salesInstances.filter(s => s.id !== activeSaleId);
+        return remaining.length ? remaining[0].id : null;
+      });
+
+      showSnackbar("Sale completed successfully!", "success");
+
     } catch (err: any) {
       console.error(err);
       showSnackbar(err.response?.data || "Error creating sale", "error");
@@ -290,30 +280,78 @@ export default function SalesPage() {
         {/* Section selector and barcode input */}
         <Box sx={{ mb: 2, display: "flex", gap: 2, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 10, background: "#f0f4f8", p: 2, borderRadius: 2 }}>
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Sales Section</InputLabel>
-            <Select
-              value={selectedSection?.id ?? ""}
-              label="Sales Section"
-              onChange={(e) => setSelectedSection(sections.find(s => s.id === Number(e.target.value)) || null)}
-            >
-              {sections.map(sec => <MenuItem key={sec.id} value={sec.id}>{sec.name}</MenuItem>)}
-            </Select>
+            <Autocomplete
+              options={sections}
+              getOptionLabel={(option) => option.name}
+              value={selectedSection}
+              onChange={(_, newValue) => setSelectedSection(newValue)}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Sales Section"
+                  size="small"
+                />
+              )}
+            />
           </FormControl>
 
-          <TextField
-            label="Scan / Type Barcode or Product Name"
+          <Autocomplete
+            freeSolo
             size="small"
-            sx={{ flex: 1, minWidth: 250 }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                const val = (e.target as HTMLInputElement).value.trim();
-                if (!val) return;
-                const prod = products.find(p => p.uniqueId === val || p.itemName.toLowerCase() === val.toLowerCase());
-                if (prod) addProductToCart(prod);
-                (e.target as HTMLInputElement).value = "";
+            options={products}
+            value={selectedValue}
+            onChange={(_, value) => {
+              if (value && typeof value !== "string") {
+                addProductToCart(value);
+                // Clear input and selection
+                setInputValue("");
+                setSelectedValue(null);
+                setTimeout(() => inputRef.current?.focus(), 0);
               }
             }}
+            inputValue={inputValue}
+            onInputChange={(_, newValue) => setInputValue(newValue)}
+            getOptionLabel={(option) =>
+              typeof option === "string"
+                ? option
+                : `${option.itemName} (${option.uniqueId || "No Barcode"})`
+            }
+            filterOptions={(options, params) => {
+              const searchText = params.inputValue.toLowerCase();
+              return options.filter(
+                (p) =>
+                  p.itemName.toLowerCase().includes(searchText) ||
+                  (p.uniqueId && p.uniqueId.toLowerCase().includes(searchText))
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                inputRef={inputRef}
+                label="Scan / Type Barcode or Product Name"
+                size="small"
+                sx={{ flex: 1, minWidth: 250 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (!val) return;
+                    const prod = products.find(
+                      (p) =>
+                        p.uniqueId?.toLowerCase() === val.toLowerCase() ||
+                        p.itemName.toLowerCase() === val.toLowerCase()
+                    );
+                    if (prod) {
+                      addProductToCart(prod);
+                      setInputValue("");
+                      setSelectedValue(null);
+                      setTimeout(() => inputRef.current?.focus(), 0);
+                    }
+                  }
+                }}
+              />
+            )}
           />
         </Box>
 
@@ -325,7 +363,7 @@ export default function SalesPage() {
                 variant={sale.id === activeSaleId ? "contained" : "outlined"}
                 onClick={() => setActiveSaleId(sale.id)}
               >
-                {sale.invoiceNumber}
+                {sale.customerMobile ? sale.customerMobile : "New Sale"}
               </Button>
 
               {/* Only show close button if more than one sale tab */}
@@ -390,12 +428,6 @@ export default function SalesPage() {
           value={activeSale.customerMobile}
           onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerMobile: e.target.value } : s))}
         />
-        <TextField
-          label="Invoice Number"
-          size="small"
-          value={activeSale.invoiceNumber}
-          InputProps={{ readOnly: true }}
-        />
         <Typography>Subtotal: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0)}</Typography>
         <TextField
           label="Discount"
@@ -443,10 +475,10 @@ export default function SalesPage() {
             date={invoiceData.date}
             customerName={invoiceData.customerName}
             customerMobile={invoiceData.customerMobile}
-            items={invoiceData.items}
+            items={invoiceData.items}      // includes barcode
             discount={invoiceData.discount}
             grandTotal={invoiceData.grandTotal}
-            cashier={invoiceData.cashier}
+            cashier={invoiceData.cashier}  // includes backend created_by
           />
         )}
       </div>

@@ -73,51 +73,56 @@ body {
   text-align: center;
 }
 
-/* Item Name */
+/* Item Name - Table Head */
 .receipt-table th.item_th {
-  width: 60%;
+  width: 70%;
   text-align: left;
 }
 
-/* Qty / Unit Price */
-.receipt-table th.qty {
+/* Qty - Table Head & Row*/
+.receipt-table th.qty,
+.receipt-table td.qty {
   width: 20%;
   text-align: center;
 }
 
-/* Barcode */
+/* Barcode - Table Head */
 .receipt-table th.barcode_th {
-  width: 50%;
+  width: 55%;
   text-align: left;
 }
 
-/* Item Name / Barcode */
-.receipt-table td.item {
-  width: 50%;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.receipt-table td.qty {
-  width: 15%;
-  text-align: center;
+/* Unit Price */
+.receipt-table th.unit_price,
+.receipt-table td.unit_price {
+  width: 20%;
+  text-align: right;
 }
 
 /* Amount */
 .receipt-table th.amount,
 .receipt-table td.amount {
-  width: 25%;
+  width: 30%;
   text-align: right;
 }
 
-/* Barcode row adjustments */
-.receipt-table td.barcode {
-  font-family: "Courier New", monospace;
+/* Item Name - Table Row */
+.receipt-table td.item {
+  width: 70%;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Barcode - Table Row */
+.receipt-table td.barcode {
+  width: 50%;
+  text-align: left;
+  white-space: nowrap;
+  /* overflow: hidden; */
+  text-overflow: ellipsis;
+  font-family: "Courier New", monospace;
 }
 
 /* Dashed line between items */

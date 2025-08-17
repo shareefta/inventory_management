@@ -2,7 +2,7 @@ import "./receipt.css";
 
 import type { SalesSection } from "src/api/sales";
 
-import { forwardRef } from "react";
+import React, { forwardRef } from "react";
 
 export interface InvoicePrintProps {
   invoiceNumber: string;
@@ -14,11 +14,11 @@ export interface InvoicePrintProps {
     name: string;
     barcode?: string;
     qty: number;
-    price: number;
-    total: number;
+    price: number | string;
+    total: number | string;
   }[];
-  discount: number;
-  grandTotal: number;
+  discount: number | string;
+  grandTotal: number | string;
   cashier: string;
 }
 
@@ -36,89 +36,93 @@ const PosReceipt = forwardRef<HTMLDivElement, InvoicePrintProps>(
       cashier,
     },
     ref
-  ) => (
-    <div ref={ref} className="receipt">
-      {/* Header */}
-      <div className="receipt-header">
-        <h2>{section.name}</h2>
-        <p>{section.channel?.name}</p>
-      </div>
+  ) => {
+    // Ensure numbers
+    const discountNum = Number(discount) || 0;
+    const grandTotalNum = Number(grandTotal) || 0;
 
-      <div className="receipt-info">
-        <p>Invoice: {invoiceNumber}</p>
-        <p>Date: {date}</p>        
-      </div>
+    return (
+      <div ref={ref} className="receipt">
+        {/* Header */}
+        <div className="receipt-header">
+          <h2>{section.name}</h2>
+          <p>{section.channel?.name}</p>
+        </div>
 
-      <hr />
-
-      {/* Customer Info */}
-      {customerName && <div className="receipt-customer">Customer: {customerName}</div>}
-      {customerMobile && <div className="receipt-customer">Mobile: {customerMobile}</div>}
-
-      <hr />
-
-      {/* Items Table (Two-row per item) */}
-      <table className="receipt-table">
-        <thead>
-          <tr>
-            <th className="sl">Sl</th>
-            <th className="item_th">Item Name</th>
-            <th className="qty">Qty</th>
-          </tr>
-          <tr>
-            <th className="barcode_th">Barcode</th>
-            <th className="qty">Unit Price</th>
-            <th className="amount">Amount</th>
-          </tr>
-        </thead>
+        <div className="receipt-info">
+          <p>Invoice: {invoiceNumber}</p>
+          <p>Date: {date}</p>        
+        </div>
 
         <hr />
 
-        <tbody>
-          {items.map((it, idx) => (
-            <>
-              {/* First row: Sl, Item Name, Qty */}
-              <tr key={`row1-${idx}`}>
-                <td className="sl">{idx + 1}.</td>
-                <td className="item">{it.name.length > 25 ? it.name.slice(0, 25) + "..." : it.name}</td>
-                <td className="qty">{it.qty}</td>
-              </tr>
-              {/* Second row: Barcode, Unit Price, Amount */}
-              <tr key={`row2-${idx}`}>
-                <td className="item barcode">{it.barcode || "-"}</td>
-                <td className="qty">{it.price.toFixed(2)}</td>
-                <td className="amount">{it.total.toFixed(2)}</td>
-              </tr>
-            </>
-          ))}
-        </tbody>
-      </table>
+        {/* Customer Info */}
+        {customerName && <div className="receipt-customer">Customer: {customerName}</div>}
+        {customerMobile && <div className="receipt-customer">Mobile: {customerMobile}</div>}
 
-      <hr />
+        <hr />
 
-      {/* Summary */}
-      <div className="receipt-summary">
-        <div className="summary-row">
-          <span>Discount</span>
-          <span>{discount.toFixed(2)}</span>
+        {/* Items Table */}
+        <table className="receipt-table">
+          <thead>
+            <tr>
+              <th className="sl">Sl</th>
+              <th className="item_th">Item Name</th>
+              <th className="qty">Qty</th>
+            </tr>
+            <tr>
+              <th className="barcode_th">Barcode</th>
+              <th className="unit_price">Unit Price</th>
+              <th className="amount">Amount</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {items.map((it, idx) => (
+              <React.Fragment key={idx}>
+                {/* First row */}
+                <tr>
+                  <td className="sl">{idx + 1}.</td>
+                  <td className="item">{it.name.length > 25 ? it.name.slice(0, 25) + "..." : it.name}</td>
+                  <td className="qty">{Number(it.qty).toFixed(0)}</td>
+                </tr>
+                {/* Second row */}
+                <tr>
+                  <td className="barcode">{it.barcode || "-"}</td>
+                  <td className="unit_price">{it.price ? Number(it.price).toFixed(2) : "0.00"}</td>
+                  <td className="amount">{it.total ? Number(it.total).toFixed(2) : "0.00"}</td>
+                </tr>
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+
+        <hr />
+
+        {/* Summary */}
+        <div className="receipt-summary">
+          <div className="summary-row">
+            <span>Discount</span>
+            <span>{discountNum.toFixed(2)}</span>
+          </div>
+          <div className="summary-row total">
+            <span>Grand Total</span>
+            <span>{grandTotalNum.toFixed(2)}</span>
+          </div>
         </div>
-        <div className="summary-row total">
-          <span>Grand Total</span>
-          <span>{grandTotal.toFixed(2)}</span>
+
+        <hr />
+
+        {/* Footer */}
+        <div className="cashier-name">
+          <p>Cashier: {cashier}</p>
+        </div>
+        <div className="receipt-footer">
+          Thank you for shopping with us!
         </div>
       </div>
-
-      <hr />
-
-      {/* Footer */}
-      <div className="cashier-name">
-        <p>Cashier: {cashier}</p>
-      </div>
-      <div className="receipt-footer">
-        Thank you for shopping with us!
-      </div>
-    </div>
-  )
+    );
+  }
 );
 
 export default PosReceipt;
