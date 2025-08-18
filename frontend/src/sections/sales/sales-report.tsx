@@ -1,5 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo  } from "react";
 
+import UndoIcon from "@mui/icons-material/Undo";
+import ReceiptIcon from "@mui/icons-material/Receipt";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import {
   Box,
@@ -25,6 +28,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  IconButton,
+  Tooltip,
   Button as MuiButton,
 } from "@mui/material";
 
@@ -33,6 +38,7 @@ import { getSales, Sale, deleteSale, getSections, SalesSection } from "src/api/s
 const paymentModes = ["Cash", "Credit", "Online"] as const;
 
 const SalesReportPage = () => {
+  const navigate = useNavigate();
   const [sales, setSales] = useState<Sale[]>([]);
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
   const [sections, setSections] = useState<SalesSection[]>([]);
@@ -70,6 +76,14 @@ const SalesReportPage = () => {
     () => Object.fromEntries(sections.map((s) => [s.id, s.name])),
     [sections]
   );
+
+  const handleOpenReturnPage = (saleId: number) => {
+    navigate(`/sales/new-sales-return/${saleId}`);
+  };
+
+  const handlePrintInvoice = (saleId: number) => {
+    window.open(`/sales-invoice-print/${saleId}`, "_blank"); 
+  };
 
   useEffect(() => {
     let filtered = [...sales];
@@ -338,14 +352,39 @@ const SalesReportPage = () => {
                     {sale.created_by || "-"}
                   </TableCell>
                   <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
-                    <MuiButton
-                      variant="contained"
-                      color="error"
-                      size="small"
-                      onClick={() => handleDeleteClick(sale.id!)}
-                    >
-                      Delete
-                    </MuiButton>
+                    <Stack direction="row" spacing={1} justifyContent="center">
+                      {/* Sales Return */}
+                      <Tooltip title="Sales Return">
+                        <IconButton
+                          color="primary"
+                          size="small"
+                          onClick={() => handleOpenReturnPage(sale.id!)}
+                        >
+                          <UndoIcon />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* Print Invoice */}
+                      <Tooltip title="Print Invoice">
+                        <IconButton
+                          color="secondary"
+                          size="small"
+                          onClick={() => handlePrintInvoice(sale.id!)}
+                        >
+                          <ReceiptIcon />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* Existing Delete Button */}
+                      <MuiButton
+                        variant="contained"
+                        color="error"
+                        size="small"
+                        onClick={() => handleDeleteClick(sale.id!)}
+                      >
+                        Delete
+                      </MuiButton>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}

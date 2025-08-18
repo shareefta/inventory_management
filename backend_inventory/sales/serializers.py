@@ -1,12 +1,20 @@
 # sales/serializers.py
 from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Sum
 from rest_framework import serializers
-from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem
+from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem, SalesReturn, SalesReturnItem
 from products.models import Product, ProductLocation, Location
+from customers.models import Customer, WalletTransaction
 from django.utils import timezone
 from django.db.models import Count
+
+REFUND_CHOICES = [
+    ("cash", "Cash"),
+    ("card", "Card"),
+    ("online", "Online"),
+    ("wallet", "Wallet"),
+]
 
 def quantize_money(value):
     return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -191,3 +199,144 @@ class SaleSerializer(serializers.ModelSerializer):
             pl.save(update_fields=["quantity"])
 
         return sale
+
+# --- Sales Return Serializers ---
+class SalesReturnItemWriteSerializer(serializers.Serializer):
+    sale_item = serializers.IntegerField()
+    quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+
+    def validate(self, data):
+        sale_item_id = data["sale_item"]
+        qty = Decimal(data["quantity"])
+
+        try:
+            si = SaleItem.objects.get(id=sale_item_id)
+        except SaleItem.DoesNotExist:
+            raise serializers.ValidationError("Sale item not found.")
+
+        if qty <= 0:
+            raise serializers.ValidationError("Return quantity must be positive.")
+
+        # Already returned?
+        total_returned = (
+            SalesReturnItem.objects.filter(sale_item_id=sale_item_id)
+            .aggregate(total=Sum("quantity"))["total"]
+            or Decimal("0")
+        )
+
+        if qty + total_returned > si.quantity:
+            raise serializers.ValidationError(
+                f"Cannot return {qty}. Already returned {total_returned}, "
+                f"original sold {si.quantity}."
+            )
+
+        return data
+
+class SalesReturnItemReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SalesReturnItem
+        fields = [
+            "id",
+            "sale_item",
+            "product",
+            "location",
+            "quantity",
+            "price",
+            "total",
+        ]
+
+class SalesReturnSerializer(serializers.ModelSerializer):
+    items = SalesReturnItemReadSerializer(many=True, read_only=True)
+    items_write = SalesReturnItemWriteSerializer(many=True, write_only=True)
+    created_by = serializers.StringRelatedField(read_only=True)
+
+    refund_mode = serializers.ChoiceField(choices=REFUND_CHOICES, default="cash")
+
+    class Meta:
+        model = SalesReturn
+        fields = [
+            "id",
+            "sale",
+            "customer",
+            "refund_amount",
+            "refund_to_wallet",
+            "refund_mode",
+            "created_at",
+            "created_by",
+            "items",
+            "items_write",
+        ]
+        read_only_fields = ["refund_amount", "created_at", "refund_to_wallet"]
+
+    @transaction.atomic
+    def create(self, validated_data):
+        items_data = validated_data.pop("items_write")
+        refund_mode = validated_data.pop("refund_mode", "cash")
+        request = self.context["request"]
+        user = request.user
+
+        sale = validated_data["sale"]
+        customer = validated_data.get("customer") or sale.customer
+
+        to_create = []
+        total_refund = Decimal("0.00")
+
+        # --- Proportional discount allocation ---
+        total_sale_before_discount = sum(Decimal(i.price) * i.quantity for i in sale.items.all())
+        discount_ratio = (sale.discount / total_sale_before_discount) if total_sale_before_discount else Decimal("0")
+
+        for item in items_data:
+            si = SaleItem.objects.get(id=item["sale_item"])
+            qty = Decimal(item["quantity"])
+            line_price = si.price
+
+            line_total_before_disc = line_price * qty
+            line_discount = line_total_before_disc * discount_ratio
+            line_total = line_total_before_disc - line_discount
+
+            total_refund += line_total
+
+            to_create.append(
+                SalesReturnItem(
+                    sale_item=si,
+                    product=si.product,
+                    location=si.location,
+                    quantity=qty,
+                    price=line_price,
+                    total=line_total,
+                )
+            )
+
+        validated_data["refund_amount"] = total_refund
+        validated_data["created_by"] = user
+        validated_data["customer"] = customer
+        validated_data["refund_to_wallet"] = refund_mode == "wallet"
+
+        sales_return = SalesReturn.objects.create(**validated_data)
+
+        for obj in to_create:
+            obj.sales_return = sales_return
+        SalesReturnItem.objects.bulk_create(to_create)
+
+        # --- Update stock back ---
+        for obj in to_create:
+            pl = ProductLocation.objects.select_for_update().filter(
+                product=obj.product, location=obj.location
+            ).first()
+            if not pl:
+                pl = ProductLocation.objects.create(
+                    product=obj.product, location=obj.location, quantity=0
+                )
+            pl.quantity = F("quantity") + obj.quantity
+            pl.save(update_fields=["quantity"])
+
+        # --- Refund handling ---
+        if sales_return.refund_to_wallet and customer:
+            WalletTransaction.objects.create(
+                customer=customer,
+                amount=total_refund,
+                transaction_type="CREDIT",
+                description=f"Refund for SalesReturn #{sales_return.id}",
+            )
+
+        return sales_return

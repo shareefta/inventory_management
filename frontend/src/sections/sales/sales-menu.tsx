@@ -12,6 +12,7 @@ export default function SalesMenuPage() {
   const menus = [
     { title: 'New Sales', path: 'sales', gradient: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)' },
     { title: 'Sales Report', path: 'sales-report', gradient: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)' },
+    { title: 'Sales Return', path: 'sales-return-report', gradient: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)' },
   ];
 
   return (

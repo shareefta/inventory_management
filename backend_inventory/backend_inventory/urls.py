@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/products/', include('products.urls')),
     path('api/delivery/', include('delivery.urls')),
     path('api/sales/', include('sales.urls')),
+    path('api/customers/', include('customers.urls')),
 
     # JWT Auth token endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

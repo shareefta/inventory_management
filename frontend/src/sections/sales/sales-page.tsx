@@ -42,7 +42,7 @@ interface SaleInstance {
   discount: number;
   customerName: string;
   customerMobile: string;
-  invoiceNumber: string; // backend will fill
+  invoiceNumber: string;
 }
 
 export default function SalesPage() {
@@ -78,7 +78,9 @@ export default function SalesPage() {
   const [salesInstances, setSalesInstances] = useState<SaleInstance[]>([
     { id: String(Date.now()), cartItems: [], discount: 0, customerName: "", customerMobile: "", invoiceNumber: "" },
   ]);
-  const [activeSaleId, setActiveSaleId] = useState<string | null>(salesInstances[0].id);
+  
+  const [activeSaleId, setActiveSaleId] = useState<string | null>(salesInstances[0]?.id ?? null);
+  
 
   const showSnackbar = (message: string, severity: "success" | "error" | "info" | "warning" = "info") => {
     setSnackbarMessage(message);
@@ -87,7 +89,17 @@ export default function SalesPage() {
   };
 
   const [invoiceData, setInvoiceData] = useState<InvoicePrintProps | null>(null);
-  const activeSale = salesInstances.find(s => s.id === activeSaleId)!;
+
+  // --- SAFETY: ensure activeSaleId always valid ---
+  useEffect(() => {
+    if (!salesInstances.length) {
+      setActiveSaleId(null);
+    } else if (!salesInstances.find(s => s.id === activeSaleId)) {
+      setActiveSaleId(salesInstances[0].id);
+    }
+  }, [salesInstances, activeSaleId]);
+
+  const activeSale = salesInstances.find(s => s?.id === activeSaleId) ?? null;  
 
   // Fetch sections and products
   useEffect(() => {
@@ -107,7 +119,7 @@ export default function SalesPage() {
 
   // Add product to cart
   const addProductToCart = (product: ProductProps) => {
-    if (!selectedSection) {
+    if (!selectedSection || !activeSale) {
       showSnackbar("Select a sales section first", "warning");
       return;
     }
@@ -148,7 +160,6 @@ export default function SalesPage() {
     }));
   };
 
-  // Update quantity
   const updateQuantity = (index: number, qty: number) => {
     setSalesInstances(prev => prev.map(sale => {
       if (sale.id !== activeSaleId) return sale;
@@ -159,7 +170,6 @@ export default function SalesPage() {
     }));
   };
 
-  // Remove item
   const removeItem = (index: number) => {
     setSalesInstances(prev => prev.map(sale => {
       if (sale.id !== activeSaleId) return sale;
@@ -173,11 +183,15 @@ export default function SalesPage() {
       showSnackbar("Select a sales section first", "warning");
       return;
     }
-    if (!activeSale.customerMobile.trim()) {
+    if (!activeSale) {
+      showSnackbar("No active sale selected", "warning");
+      return;
+    }
+    if (!activeSale?.customerMobile.trim()) {
       showSnackbar("Customer mobile is required!", "warning");
       return;
     }
-    if (activeSale.cartItems.length === 0) {
+    if (!activeSale.cartItems.length) {
       showSnackbar("Cart is empty", "warning");
       return;
     }
@@ -208,8 +222,6 @@ export default function SalesPage() {
 
     try {
       const response = await createSale(payload);
-
-      // Backend returns full Sale object
       const savedSale: Sale = response.data;
 
       const invoiceProps = {
@@ -218,21 +230,15 @@ export default function SalesPage() {
         cashier: savedSale.created_by || "Unknown",
       };
 
-      // // Use your utility to convert to receipt props
-      // const invoiceProps = SaleToInvoiceProps(savedSale, selectedSection);
-
       setInvoiceData(invoiceProps);
 
-      // Print
       setTimeout(() => handlePrint(), 300);
 
-      // Remove completed sale tab
-      setSalesInstances(prev => prev.filter(s => s.id !== activeSaleId));
-
-      // Switch to first remaining tab
-      setActiveSaleId(prev => {
-        const remaining = salesInstances.filter(s => s.id !== activeSaleId);
-        return remaining.length ? remaining[0].id : null;
+      // Remove completed sale and safely set activeSaleId
+      setSalesInstances(prev => {
+        const remaining = prev.filter(s => s.id !== activeSaleId);
+        setActiveSaleId(remaining.length ? remaining[0].id : null);
+        return remaining;
       });
 
       showSnackbar("Sale completed successfully!", "success");
@@ -243,7 +249,6 @@ export default function SalesPage() {
     }
   };
 
-  // Add new sale tab
   const handleNewSale = () => {
     const newSale: SaleInstance = { 
       id: String(Date.now()), 
@@ -257,19 +262,38 @@ export default function SalesPage() {
     setActiveSaleId(newSale.id);
   };
 
-  // Close sale tab
   const handleCloseSaleTab = (saleId: string) => {
-    setSalesInstances(prev => prev.filter(s => s.id !== saleId));
-
-    if (activeSaleId === saleId) {
-      const remaining = salesInstances.filter(s => s.id !== saleId);
-      setActiveSaleId(remaining.length ? remaining[0].id : null);
-    }
+    setSalesInstances(prev => {
+      const remaining = prev.filter(s => s.id !== saleId);
+      if (activeSaleId === saleId) {
+        setActiveSaleId(remaining.length ? remaining[0].id : null);
+      }
+      return remaining;
+    });
   };
+
+  useEffect(() => {
+    if (!salesInstances.length) {
+      // If no sales exist, create a new one
+      const newSale: SaleInstance = {
+        id: String(Date.now()),
+        cartItems: [],
+        discount: 0,
+        customerName: "",
+        customerMobile: "",
+        invoiceNumber: "",
+      };
+      setSalesInstances([newSale]);
+      setActiveSaleId(newSale.id);
+    } else if (!salesInstances.find(s => s.id === activeSaleId)) {
+      // If activeSaleId is invalid, set first sale as active
+      setActiveSaleId(salesInstances[0].id);
+    }
+  }, [salesInstances, activeSaleId]);
 
   return (
     <Box sx={{ maxWidth: 1400, py: 2, display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
-      
+
       {/* Left: Cart */}
       <Box sx={{ flex: 2 }}>
         <Breadcrumbs sx={{ mb: 2 }}>
@@ -286,13 +310,7 @@ export default function SalesPage() {
               value={selectedSection}
               onChange={(_, newValue) => setSelectedSection(newValue)}
               isOptionEqualToValue={(option, value) => option.id === value.id}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Sales Section"
-                  size="small"
-                />
-              )}
+              renderInput={(params) => <TextField {...params} label="Sales Section" size="small" />}
             />
           </FormControl>
 
@@ -302,9 +320,8 @@ export default function SalesPage() {
             options={products}
             value={selectedValue}
             onChange={(_, value) => {
-              if (value && typeof value !== "string") {
+              if (value && typeof value !== "string" && selectedSection && activeSale) {
                 addProductToCart(value);
-                // Clear input and selection
                 setInputValue("");
                 setSelectedValue(null);
                 setTimeout(() => inputRef.current?.focus(), 0);
@@ -312,11 +329,7 @@ export default function SalesPage() {
             }}
             inputValue={inputValue}
             onInputChange={(_, newValue) => setInputValue(newValue)}
-            getOptionLabel={(option) =>
-              typeof option === "string"
-                ? option
-                : `${option.itemName} (${option.uniqueId || "No Barcode"})`
-            }
+            getOptionLabel={(option) => typeof option === "string" ? option : `${option.itemName} (${option.uniqueId || "No Barcode"})`}
             filterOptions={(options, params) => {
               const searchText = params.inputValue.toLowerCase();
               return options.filter(
@@ -336,18 +349,16 @@ export default function SalesPage() {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     const val = (e.target as HTMLInputElement).value.trim();
-                    if (!val) return;
+                    if (!val || !selectedSection || !activeSale) return;
                     const prod = products.find(
                       (p) =>
                         p.uniqueId?.toLowerCase() === val.toLowerCase() ||
                         p.itemName.toLowerCase() === val.toLowerCase()
                     );
-                    if (prod) {
-                      addProductToCart(prod);
-                      setInputValue("");
-                      setSelectedValue(null);
-                      setTimeout(() => inputRef.current?.focus(), 0);
-                    }
+                    if (prod) addProductToCart(prod);
+                    setInputValue("");
+                    setSelectedValue(null);
+                    setTimeout(() => inputRef.current?.focus(), 0);
                   }
                 }}
               />
@@ -356,99 +367,113 @@ export default function SalesPage() {
         </Box>
 
         {/* Sales Tabs */}
-        <Box sx={{ display: "flex", gap: 1, mb: 1, flexWrap: "wrap" }}>
-          {salesInstances.map(sale => (
-            <Box key={sale.id} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Button
-                variant={sale.id === activeSaleId ? "contained" : "outlined"}
-                onClick={() => setActiveSaleId(sale.id)}
-              >
-                {sale.customerMobile ? sale.customerMobile : "New Sale"}
-              </Button>
-
-              {/* Only show close button if more than one sale tab */}
-              {salesInstances.length > 1 && (
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => handleCloseSaleTab(sale.id)}
+        {salesInstances.length > 0 && (
+          <Box sx={{ display: "flex", gap: 1, mb: 1, flexWrap: "wrap" }}>
+            {salesInstances.map(sale => (
+              <Box key={sale.id} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Button
+                  variant={sale.id === activeSaleId ? "contained" : "outlined"}
+                  onClick={() => setActiveSaleId(sale.id)}
                 >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-          ))}
-
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={handleNewSale}>
-            New Sale
-          </Button>
-        </Box>
+                  {sale.customerMobile || "New Sale"}
+                </Button>
+                {salesInstances.length > 1 && (
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => handleCloseSaleTab(sale.id)}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+            ))}
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={handleNewSale}>New Sale</Button>
+          </Box>
+        )}
 
         {/* Cart Table */}
-        <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
-          <Table stickyHeader>
-            <TableHead>
-              <TableRow sx={{ background: "#333" }}>
-                {["SL No", "Barcode", "Product Name", "Qty", "Rate", "Total", "Actions"].map(h => (
-                  <TableCell key={h} sx={{ color: "black", fontWeight: "bold", textAlign: "center" }}>{h}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {activeSale.cartItems.map((item, idx) => (
-                <TableRow key={idx} hover>
-                  <TableCell align="center">{idx + 1}</TableCell>
-                  <TableCell align="center">{item.product_barcode}</TableCell>
-                  <TableCell>{item.product_name}</TableCell>
-                  <TableCell align="center">
-                    <TextField type="number" value={item.quantity} onChange={(e) => updateQuantity(idx, Number(e.target.value))} size="small" sx={{ width: 70 }} />
-                  </TableCell>
-                  <TableCell align="center">{item.price}</TableCell>
-                  <TableCell align="center">{item.total}</TableCell>
-                  <TableCell align="center"><Button size="small" color="error" onClick={() => removeItem(idx)}>Remove</Button></TableCell>
+        {activeSale?.cartItems.length ? (
+          <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow sx={{ background: "#333" }}>
+                  {["SL No", "Barcode", "Product Name", "Qty", "Rate", "Total", "Actions"].map(h => (
+                    <TableCell key={h} sx={{ color: "black", fontWeight: "bold", textAlign: "center" }}>{h}</TableCell>
+                  ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {activeSale.cartItems.map((item, idx) => (
+                  <TableRow key={idx} hover>
+                    <TableCell align="center">{idx + 1}</TableCell>
+                    <TableCell align="center">{item.product_barcode}</TableCell>
+                    <TableCell>{item.product_name}</TableCell>
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(idx, Number(e.target.value))}
+                        size="small"
+                        sx={{ width: 70 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">{item.price}</TableCell>
+                    <TableCell align="center">{item.total}</TableCell>
+                    <TableCell align="center">
+                      <Button size="small" color="error" onClick={() => removeItem(idx)}>Remove</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : (
+          <Typography sx={{ mt: 2, textAlign: "center" }}>No items in cart.</Typography>
+        )}
       </Box>
 
       {/* Right: Summary */}
-      <Box sx={{ flex: 1, p: 2, backgroundColor: "#f0f4f8", borderRadius: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h6">Summary</Typography>
-        <TextField
-          label="Customer Name (Optional)"
-          size="small"
-          value={activeSale.customerName}
-          onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerName: e.target.value } : s))}
-        />
-        <TextField
-          label="Customer Mobile *"
-          size="small"
-          value={activeSale.customerMobile}
-          onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerMobile: e.target.value } : s))}
-        />
-        <Typography>Subtotal: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0)}</Typography>
-        <TextField
-          label="Discount"
-          type="number"
-          size="small"
-          value={activeSale.discount}
-          onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, discount: Number(e.target.value) } : s))}
-        />
-        <Typography sx={{ fontWeight: "bold", color: "green" }}>
-          Grand Total: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) - activeSale.discount}
-        </Typography>
-        <FormControl size="small">
-          <InputLabel>Payment Mode</InputLabel>
-          <Select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value as "Cash" | "Credit" | "Online")}>
-            <MenuItem value="Cash">Cash</MenuItem>
-            <MenuItem value="Credit">Credit</MenuItem>
-            <MenuItem value="Online">Online</MenuItem>
-          </Select>
-        </FormControl>
-        <Button variant="contained" color="primary" onClick={handleCheckout}>Checkout</Button> 
-      </Box>
+      {activeSale && (
+        <Box sx={{ flex: 1, p: 2, backgroundColor: "#f0f4f8", borderRadius: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+          <Typography variant="h6">Summary</Typography>
+          <TextField
+            label="Customer Name (Optional)"
+            size="small"
+            value={activeSale.customerName}
+            onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerName: e.target.value } : s))}
+          />
+          <TextField
+            label="Customer Mobile *"
+            size="small"
+            value={activeSale.customerMobile}
+            onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerMobile: e.target.value } : s))}
+          />
+          <Typography>Subtotal: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0)}</Typography>
+          <TextField
+            label="Discount"
+            type="number"
+            size="small"
+            value={activeSale.discount}
+            onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, discount: Number(e.target.value) } : s))}
+          />
+          <Typography sx={{ fontWeight: "bold", color: "green" }}>
+            Grand Total: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) - activeSale.discount}
+          </Typography>
+          <FormControl size="small">
+            <InputLabel>Payment Mode</InputLabel>
+            <Select
+              value={paymentMode}
+              onChange={(e) => setPaymentMode(e.target.value as "Cash" | "Credit" | "Online")}
+            >
+              <MenuItem value="Cash">Cash</MenuItem>
+              <MenuItem value="Credit">Credit</MenuItem>
+              <MenuItem value="Online">Online</MenuItem>
+            </Select>
+          </FormControl>
+          <Button variant="contained" color="primary" onClick={handleCheckout}>Checkout</Button>
+        </Box>
+      )}
 
       {/* Snackbar */}
       <Snackbar
@@ -466,8 +491,9 @@ export default function SalesPage() {
         <ArrowUpwardIcon />
       </Fab>
 
-      <div style={{ display: "none" }}>
-        {invoiceData && (
+      {/* Hidden invoice print */}
+      {invoiceData && (
+        <div style={{ display: "none" }}>
           <PosReceipt
             ref={receiptRef}
             invoiceNumber={invoiceData.invoiceNumber}
@@ -475,13 +501,13 @@ export default function SalesPage() {
             date={invoiceData.date}
             customerName={invoiceData.customerName}
             customerMobile={invoiceData.customerMobile}
-            items={invoiceData.items}      // includes barcode
+            items={invoiceData.items}
             discount={invoiceData.discount}
             grandTotal={invoiceData.grandTotal}
-            cashier={invoiceData.cashier}  // includes backend created_by
+            cashier={invoiceData.cashier}
           />
-        )}
-      </div>
+        </div>
+      )}
     </Box>
   );
 }

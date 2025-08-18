@@ -21,6 +21,7 @@ export interface SectionProductPrice {
 }
 
 export interface SaleItem {
+  id: number;
   product?: number;
   product_name: string;
   product_barcode?: string;
@@ -45,6 +46,23 @@ export interface Sale {
   total_amount?: number;
   created_by?: string;
   items?: SaleItem[];
+}
+
+export interface SalesReturnItem {
+  sale_item: number;
+  quantity: number;
+}
+
+export interface SalesReturn {
+  id: number;
+  sale: number;
+  customer?: number;
+  created_at?: string;
+  refund_amount: number;
+  refund_to_wallet: boolean;
+  refund_mode: "cash" | "card" | "online" | "wallet";
+  created_by?: string;
+  items: SalesReturnItem[];
 }
 
 // --- Axios instance ---
@@ -101,3 +119,34 @@ export const getSales = () => api.get<Sale[]>("sales/");
 export const createSale = (sale: Partial<Sale>) => api.post("sales/", sale);
 export const updateSale = (id: number, sale: Partial<Sale>) => api.put(`sales/${id}/`, sale);
 export const deleteSale = (id: number) => api.delete(`sales/${id}/`);
+
+// Fetch all returns (optionally filter by saleId or other fields)
+export const getSalesReturns = (filters?: {
+  sale?: number;
+  invoice?: string;
+  customer?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) =>
+  api
+    .get<SalesReturn[]>("sales-returns/", { params: filters })
+    .then(res => res.data);
+
+// Fetch single return
+export const getSalesReturn = (id: number) =>
+  api.get<SalesReturn>(`sales-returns/${id}/`).then(res => res.data);
+
+// Create new sales return
+export const createSalesReturn = (data: {
+  sale: number;
+  customer?: number;
+  refund_mode?: "cash" | "card" | "online" | "wallet";
+  items_write: SalesReturnItem[];
+}) => api.post("sales-returns/", data);
+
+// Update sales return (rarely needed, mostly for admin corrections)
+export const updateSalesReturn = (id: number, data: Partial<SalesReturn>) =>
+  api.put(`sales-returns/${id}/`, data);
+
+// Delete a sales return (admin only)
+export const deleteSalesReturn = (id: number) => api.delete(`sales-returns/${id}/`);

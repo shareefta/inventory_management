@@ -1,7 +1,8 @@
 # sales/models.py
-from django.conf import settings
-from django.db import models
+from decimal import Decimal, ROUND_HALF_UP
+from django.db import models, transaction
 from django.utils import timezone
+from django.conf import settings
 
 # Use string app labels to avoid circular imports; they match your current setup
 # (Category, Location, Product live in "products")
@@ -76,6 +77,7 @@ class Sale(models.Model):
 
     sale_datetime = models.DateTimeField(default=timezone.now, db_index=True)
 
+    customer = models.ForeignKey("customers.Customer", on_delete=models.SET_NULL, null=True, blank=True)
     customer_name = models.CharField(max_length=150, blank=True, null=True)
     customer_mobile = models.CharField(max_length=20, blank=True, null=True)
 
@@ -118,3 +120,52 @@ class SaleItem(models.Model):
 
     def __str__(self):
         return f"{self.product_name} x {self.quantity} = {self.total}"
+
+class SalesReturn(models.Model):
+    REFUND_MODE_CHOICES = [
+        ("cash", "Cash"),
+        ("card", "Card"),
+        ("online", "Online"),
+        ("wallet", "Wallet"),
+    ]
+    sale = models.ForeignKey("Sale", on_delete=models.CASCADE, related_name="returns")
+    customer = models.ForeignKey("customers.Customer", on_delete=models.SET_NULL, null=True, blank=True, related_name="returns")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    # Computed in create() from items with proportional discount allocation
+    refund_amount = models.DecimalField(max_digits=14, decimal_places=2)
+
+    refund_mode = models.CharField(
+        max_length=10, choices=REFUND_MODE_CHOICES, default="cash"
+    )
+
+    # If True -> credit wallet instead of giving cash
+    refund_to_wallet = models.BooleanField(default=False)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_sales_returns"
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"SalesReturn #{self.pk} for Sale {self.sale_id}"
+
+class SalesReturnItem(models.Model):
+    sales_return = models.ForeignKey(SalesReturn, on_delete=models.CASCADE, related_name="items")
+    sale_item = models.ForeignKey("SaleItem", on_delete=models.PROTECT, related_name="return_items")
+
+    # Keep strong links for stock operations and integrity
+    product = models.ForeignKey("products.Product", on_delete=models.PROTECT)
+    location = models.ForeignKey("products.Location", on_delete=models.PROTECT)
+
+    # Use same precision as SaleItem.quantity
+    quantity = models.DecimalField(max_digits=12, decimal_places=3)
+
+    # Snapshot finance
+    price = models.DecimalField(max_digits=12, decimal_places=2)  # unit price before discount allocation
+    total = models.DecimalField(max_digits=14, decimal_places=2)  # line total after proportional discount allocation
+
+    def __str__(self):
+        return f"Return {self.product} x {self.quantity} to {self.location}"

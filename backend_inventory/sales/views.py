@@ -2,16 +2,20 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
-from .models import SalesChannel, SalesSection, SectionProductPrice, Sale
+from rest_framework import serializers
+from django.db import transaction
+from django.db.models import F, Sum
+from decimal import Decimal
+from customers.models import WalletTransaction
+from products.models import ProductLocation
+from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem, SalesReturn, SalesReturnItem
 from .serializers import (
     SalesChannelSerializer,
     SalesSectionSerializer,
     SectionProductPriceSerializer,
-    SaleSerializer,
+    SaleSerializer, SalesReturnSerializer
 )
 from products.models import Product
-
 
 class IsStaffOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -19,12 +23,10 @@ class IsStaffOrReadOnly(permissions.BasePermission):
             return True
         return bool(request.user and request.user.is_staff)
 
-
 class SalesChannelViewSet(viewsets.ModelViewSet):
     queryset = SalesChannel.objects.all().order_by("name")
     serializer_class = SalesChannelSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-
 
 class SalesSectionViewSet(viewsets.ModelViewSet):
     queryset = SalesSection.objects.select_related("channel", "location").all()
@@ -40,7 +42,6 @@ class SalesSectionViewSet(viewsets.ModelViewSet):
         if channel_name:
             qs = qs.filter(channel__name__iexact=channel_name)
         return qs.order_by("channel__name", "name")
-
 
 class SectionProductPriceViewSet(viewsets.ModelViewSet):
     queryset = SectionProductPrice.objects.select_related("section", "product").all()
@@ -83,7 +84,6 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
 
         return Response({"created": created, "updated": updated})
 
-
     @action(detail=False, methods=["get"], url_path="lookup")
     def lookup(self, request):        
         section_id = request.query_params.get("section_id")
@@ -117,11 +117,110 @@ class SaleViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        sale = serializer.save()  # this runs SaleSerializer.create()
-        read_serializer = SaleSerializer(sale)  # serialize the saved sale with all fields
+        sale = serializer.save()
+        read_serializer = SaleSerializer(sale)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
-    # def perform_create(self, serializer):
-    #     # created_by & sale_datetime handled in serializer.create (using request.user & default)
-    #     serializer.context["request"] = self.request
-    #     serializer.save()
+class SalesReturnViewSet(viewsets.ModelViewSet):
+    """
+    CRUD API for SalesReturn and associated items.
+    """
+    queryset = SalesReturn.objects.select_related("sale", "customer", "created_by").prefetch_related("items")
+    serializer_class = SalesReturnSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        sale = serializer.validated_data["sale"]
+        customer = serializer.validated_data.get("customer") or sale.customer
+        refund_mode = serializer.validated_data.get("refund_mode", "cash")
+        refund_to_wallet = refund_mode == "wallet"
+        items_data = serializer.validated_data["items_write"]
+
+        total_refund = Decimal("0.00")
+        return_items = []
+
+        # --- Calculate total refund and prepare items ---
+        total_sale_before_discount = sum(i.price * i.quantity for i in sale.items.all())
+        discount_ratio = (sale.discount / total_sale_before_discount) if total_sale_before_discount else Decimal("0")
+
+        for item in items_data:
+            sale_item = SaleItem.objects.get(id=item["sale_item"])
+            qty = Decimal(item["quantity"])
+
+            # Ensure not returning more than sold minus already returned
+            total_returned = (
+                SalesReturnItem.objects.filter(sale_item_id=sale_item.id)
+                .aggregate(total=Sum("quantity"))["total"]
+                or Decimal("0")
+            )
+            if qty > (sale_item.quantity - total_returned):
+                raise serializers.ValidationError(
+                    f"Cannot return more than available for {sale_item.product_name}"
+                )
+
+            # Proportional discount
+            line_total_before_disc = sale_item.price * qty
+            line_discount = line_total_before_disc * discount_ratio
+            line_total = line_total_before_disc - line_discount
+
+            total_refund += line_total
+
+            return_items.append({
+                "sale_item": sale_item,
+                "product": sale_item.product,
+                "location": sale_item.location,
+                "quantity": qty,
+                "price": sale_item.price,
+                "total": line_total,
+            })
+
+        # --- Create SalesReturn ---
+        sales_return = SalesReturn.objects.create(
+            sale=sale,
+            customer=customer,
+            refund_amount=total_refund,
+            refund_to_wallet=refund_to_wallet,
+            refund_mode=refund_mode,
+            created_by=request.user,
+        )
+
+        # --- Create SalesReturnItems and update stock ---
+        for ri in return_items:
+            SalesReturnItem.objects.create(
+                sales_return=sales_return,
+                sale_item=ri["sale_item"],
+                product=ri["product"],
+                location=ri["location"],
+                quantity=ri["quantity"],
+                price=ri["price"],
+                total=ri["total"],
+            )
+            # Update stock
+            pl = ProductLocation.objects.select_for_update().filter(
+                product=ri["product"], location=ri["location"]
+            ).first()
+            if pl:
+                pl.quantity = F("quantity") + ri["quantity"]
+                pl.save(update_fields=["quantity"])
+            else:
+                ProductLocation.objects.create(
+                    product=ri["product"], location=ri["location"], quantity=ri["quantity"]
+                )
+
+        # --- Handle wallet credit if chosen ---
+        if refund_to_wallet and customer:
+            WalletTransaction.objects.create(
+                customer=customer,
+                amount=total_refund,
+                transaction_type="CREDIT",
+                description=f"Refund for SalesReturn #{sales_return.id}",
+            )
+            customer.wallet_balance = F("wallet_balance") + total_refund
+            customer.save(update_fields=["wallet_balance"])
+
+        read_serializer = SalesReturnSerializer(sales_return)
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)

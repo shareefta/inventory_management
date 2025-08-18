@@ -1,1 +1,1 @@
-export { default as SalesPage } from './sales-page';  
+export { default as SalesPage } from './sales-page';
