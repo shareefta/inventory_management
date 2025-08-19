@@ -8,9 +8,9 @@ import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
 
-import { getProducts } from 'src/api/products';
 import { _langs, _notifications } from 'src/_mock';
 import { useAuthStore } from 'src/store/use-auth-store';
+import { getActiveProductCount } from 'src/api/products';
 
 import { Label } from 'src/components/label';
 
@@ -62,19 +62,18 @@ export function DashboardLayout({
 
   const fetchProductCount = async () => {
     try {
-      const products = await getProducts();
-      const activeCount = products.filter((p) => p.active).length;
+      const activeCount = await getActiveProductCount();
+      console.log("Active product count:", activeCount);
 
       const updatedNav = navData.map((item) =>
         item.title === 'Product'
           ? {
               ...item,
-              info:
-                activeCount > 0 ? (
-                  <Label color="error" variant="inverted">
-                    {activeCount}
-                  </Label>
-                ) : undefined,
+              info: (
+                <Label color="error" variant="inverted">
+                  {activeCount}
+                </Label>
+              ),
             }
           : item
       );

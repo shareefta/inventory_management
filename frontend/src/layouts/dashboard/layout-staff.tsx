@@ -59,8 +59,8 @@ export function StaffDashboardLayout({
 
   const fetchProductCount = async () => {
     try {
-      const products = await getProducts();
-      const activeCount = products.filter((p) => p.active).length;
+      const response = await getProducts();
+      const activeCount = response.data.filter((p) => p.active).length;
 
       const updatedNav = StaffNavData.map((item) =>
         item.title === 'Product'

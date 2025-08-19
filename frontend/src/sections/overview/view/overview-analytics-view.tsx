@@ -30,18 +30,19 @@ export function OverviewAnalyticsView() {
       const products = await getProducts();
 
       // Active products
-      const activeCount = products.filter((p) => p.active).length;
+      const response = await getProducts();
+      const activeCount = response.data.filter((p) => p.active).length;
       setActiveProductCount(activeCount);
 
       // Total quantity across all locations
-      const quantitySum = products.reduce((acc, p) => {
+      const quantitySum = response.data.reduce((acc, p) => {
         const productTotalQty = p.locations.reduce((qAcc, loc) => qAcc + (loc.quantity || 0), 0);
         return acc + productTotalQty;
       }, 0);
       setTotalQuantity(quantitySum);
 
       // Total cost = sum of (rate * quantity at each location)
-      const costSum = products.reduce((acc, p) => {
+      const costSum = response.data.reduce((acc, p) => {
         const productCost = p.locations.reduce((cAcc, loc) => cAcc + (loc.quantity || 0) * (p.rate || 0), 0);
         return acc + productCost;
       }, 0);

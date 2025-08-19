@@ -104,7 +104,7 @@ export default function SalesPage() {
   // Fetch sections and products
   useEffect(() => {
     getSections().then(res => setSections(res.data));
-    getProducts().then(fetchedProducts => setProducts(fetchedProducts));
+    getProducts().then(fetchedProducts => setProducts(fetchedProducts.data));
   }, []);
 
   useEffect(() => {

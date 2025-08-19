@@ -53,7 +53,7 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
     setLoadingData(true);
     Promise.all([getProducts(), getLocations(), getPurchase(purchaseId)])
       .then(([prods, locs, purchase]) => {
-        setProducts(prods);
+        setProducts(prods.data);
         setLocations(locs);
 
         // Map purchase data to form shape with '' for empty selections

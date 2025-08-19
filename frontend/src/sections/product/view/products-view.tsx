@@ -13,9 +13,10 @@ import Typography from '@mui/material/Typography';
 import TableContainer from '@mui/material/TableContainer';
 import TablePagination from '@mui/material/TablePagination';
 import CircularProgress from '@mui/material/CircularProgress';
+import { Dialog, DialogTitle, DialogContent, DialogActions, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
 
 import { DashboardContent } from 'src/layouts/dashboard';
-import { getProducts, deleteProduct, getCategories, getLocations } from 'src/api/products';
+import { getProducts, deleteProduct, getCategories, getLocations, downloadProductsExcel } from 'src/api/products';
 
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
@@ -31,98 +32,143 @@ import { ProductTableHead } from 'src/sections/product/product-table-head';
 import { ProductTableToolbar } from 'src/sections/product/product-table-toolbar';
 import { applyFilter, emptyRows, getComparator } from 'src/sections/product/utils';
 
+const columns = [
+  { key: 'unique_id', label: 'Product ID' },
+  { key: 'item_name', label: 'Item Name' },
+  { key: 'brand', label: 'Brand' },
+  { key: 'serial_number', label: 'Model No.' },
+  { key: 'variants', label: 'Variants' },
+  { key: 'category', label: 'Category' },
+  { key: 'rate', label: 'Rate' },
+  { key: 'active', label: 'Active' },
+  { key: 'description', label: 'Description' },
+  { key: 'created_at', label: 'Created At' },
+];
+
 export function ProductView() {
-  const table = useTable();
+  const table = useTable(25);
   const { enqueueSnackbar } = useSnackbar();
 
   const [filterName, setFilterName] = useState('');
   const [products, setProducts] = useState<ProductProps[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openNewProduct, setOpenNewProduct] = useState(false);
+  const [totalProducts, setTotalProducts] = useState(0);
+
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [openNewProduct, setOpenNewProduct] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
-  const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
-  const [selectedProductForBarcode, setSelectedProductForBarcode] = useState<ProductProps | null>(null);
+
   const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
   const [editProductDialogOpen, setEditProductDialogOpen] = useState(false);
 
-  const fetchProducts = useCallback(() => {
-    setLoading(true);
-    getProducts()
-      .then((data) => {
+  const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
+  const [selectedProductForBarcode, setSelectedProductForBarcode] = useState<ProductProps | null>(null);
+
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState(columns.map(c => c.key));
+
+  // -----------------------------
+  // Fetch Products from API
+  // -----------------------------
+  const fetchProducts = useCallback(
+    async (pageParam = table.page, limitParam = table.rowsPerPage, search = filterName) => {
+      setLoading(true);
+      try {
+        const { data, total } = await getProducts(pageParam + 1, limitParam, search);
         setProducts(data);
-      })
-      .catch((error) => {
+        setTotalProducts(total);
+      } catch (error) {
         console.error('❌ Failed to fetch products', error);
         enqueueSnackbar('Failed to fetch products', { variant: 'error' });
-      })
-      .finally(() => setLoading(false));
-  }, [enqueueSnackbar]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [enqueueSnackbar, table.page, table.rowsPerPage, filterName]
+  );
 
+  // -----------------------------
+  // Fetch categories and locations
+  // -----------------------------
   useEffect(() => {
     fetchProducts();
 
     getCategories()
       .then(setCategories)
-      .catch((err) => {
-        console.error('❌ Failed to fetch categories', err);
-        enqueueSnackbar('Failed to fetch categories', { variant: 'error' });
-      });
+      .catch(err => enqueueSnackbar('Failed to fetch categories', { variant: 'error' }));
 
     getLocations()
       .then(setLocations)
-      .catch((err) => {
-        console.error('❌ Failed to fetch locations', err);
-        enqueueSnackbar('Failed to fetch locations', { variant: 'error' });
-      });
-  }, [enqueueSnackbar]);
+      .catch(err => enqueueSnackbar('Failed to fetch locations', { variant: 'error' }));
+  }, [enqueueSnackbar, fetchProducts]);
 
-  if (loading) return <CircularProgress />;
-
-  // Compute total_quantity for each product
-  const productsWithTotalQuantity = products.map((product) => ({
+  // -----------------------------
+  // Filtered products with total quantity
+  // -----------------------------
+  const productsWithTotalQuantity = products.map(product => ({
     ...product,
     total_quantity: (product.locations ?? []).reduce((acc, loc) => acc + loc.quantity, 0),
   }));
 
-  // Apply filtering and sorting
-  const dataFiltered: ProductProps[] = applyFilter<ProductProps>({
+  const dataFiltered: ProductProps[] = applyFilter({
     inputData: productsWithTotalQuantity,
-    comparator: getComparator<ProductProps>(table.order, table.orderBy as keyof ProductProps),
+    comparator: getComparator(table.order, table.orderBy as keyof ProductProps),
     filterName,
   });
 
   const notFound = !dataFiltered.length && !!filterName;
 
+  // -----------------------------
+  // Handlers
+  // -----------------------------
   const handleNewProductSuccess = () => {
     setOpenNewProduct(false);
     fetchProducts();
   };
 
   const handleDeleteProduct = async (id: string) => {
-    const confirm = window.confirm('Are you sure you want to delete this product?');
-    if (!confirm) return;
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
       await deleteProduct(id);
-      setProducts((prev) => prev.filter((p) => p.id !== id));
-      table.onSelectRow(id); // toggle off selection if selected
+      setProducts(prev => prev.filter(p => p.id !== id));
+      table.onSelectRow(id); // remove selection if selected
       enqueueSnackbar('Product deleted successfully!', { variant: 'success' });
     } catch (error) {
       console.error('❌ Failed to delete product', error);
-      enqueueSnackbar('Failed to delete product.', { variant: 'error' });
+      enqueueSnackbar('Failed to delete product', { variant: 'error' });
     }
   };
 
-  // Handle product update (after inline editing saved)
-  const handleUpdateProductInList = (updatedProduct: ProductProps) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
-    );
-    enqueueSnackbar('Product updated successfully!', { variant: 'success' });
+  const handleUpdateProductInList = (updated: ProductProps) => {
+    setProducts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+    enqueueSnackbar(`Product updated: ${updated.itemName} (${updated.uniqueId})`, { variant: 'success' });
   };
 
-  // Updated headLabel with disableSorting flags for non-sortable columns
+  const handleShowBarcode = (product: ProductProps) => {
+    setSelectedProductForBarcode(product);
+    setBarcodeDialogOpen(true);
+  };
+
+  const toggleColumn = (key: string) => {
+    setSelectedColumns(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const handleDownload = async () => {
+    try {
+      await downloadProductsExcel(filterName, selectedColumns);
+      setDownloadDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to download Excel', error);
+      enqueueSnackbar('Failed to download Excel', { variant: 'error' });
+    }
+  };
+
+  // -----------------------------
+  // Table Head Labels
+  // -----------------------------
   const headLabel = [
     { id: 'serial', label: '#', disableSorting: true },
     { id: 'image', label: 'Image', disableSorting: true },
@@ -138,19 +184,13 @@ export function ProductView() {
     { id: '', disableSorting: true },
   ];
 
-  const handleShowBarcode = (product: ProductProps) => {
-    setSelectedProductForBarcode(product);
-    setBarcodeDialogOpen(true);
-  };
-
   return (
     <DashboardContent maxWidth="xl">
       <Grid container spacing={3}>
-        <Grid size={{ sm: 12 }}>
-          <Box sx={{ mb: 5, display: 'flex', alignItems: 'center' }}>
-            <Typography variant="h4" sx={{ flexGrow: 1 }}>
-              Products
-            </Typography>            
+        <Grid size={{ xs: 12 }} >
+          {/* Header */}
+          <Box sx={{ mb: 5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h4" sx={{ flexGrow: 1 }}>Products</Typography>
             <Button
               variant="contained"
               color="primary"
@@ -159,82 +199,77 @@ export function ProductView() {
             >
               New Product
             </Button>
+
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<Iconify icon="solar:download-bold" />}
+              onClick={() => setDownloadDialogOpen(true)}
+            >
+              Excel
+            </Button>
           </Box>
 
+          {/* New Product Dialog */}
           <NewProductDialog
             open={openNewProduct}
-            onClose={() => {
-              setOpenNewProduct(false);
-              setScannedBarcode(null); // Reset barcode on close
-            }}
+            onClose={() => { setOpenNewProduct(false); setScannedBarcode(null); }}
             onSuccess={handleNewProductSuccess}
             initialBarcode={scannedBarcode ?? undefined}
           />
 
+          {/* Barcode Scanner */}
           <BarcodeScanner
-            onProductFound={(product) => {
-              enqueueSnackbar(`Product found: ${product.item_name}`, { variant: 'info' });
-              // setProductToEdit(product);
-              // setEditProductDialogOpen(true);
-            }}
-            onNotFound={(barcode) => {
-              enqueueSnackbar(`Product not found for barcode: ${barcode}`, { variant: 'warning' });
-              setScannedBarcode(barcode);
-              setOpenNewProduct(true);
-            }}
+            onProductFound={(product) => enqueueSnackbar(`Product found: ${product.item_name}`, { variant: 'info' })}
+            onNotFound={(barcode) => { enqueueSnackbar(`Product not found: ${barcode}`, { variant: 'warning' }); setScannedBarcode(barcode); setOpenNewProduct(true); }}
           />
 
+          {/* Product Edit Dialog */}
           {productToEdit && (
             <ProductEditDialog
               open={editProductDialogOpen}
               product={productToEdit}
-              onClose={() => {
-                setEditProductDialogOpen(false);
-                setProductToEdit(null);
-              }}
-              onSuccess={() => {
-                setEditProductDialogOpen(false);
-                setProductToEdit(null);
-                fetchProducts();
-              }}
+              onClose={() => { setEditProductDialogOpen(false); setProductToEdit(null); }}
+              onSuccess={(updated) => { handleUpdateProductInList(updated); setEditProductDialogOpen(false); setProductToEdit(null); fetchProducts(); }}
               categories={categories}
               locations={locations}
             />
           )}
 
+          {/* Table */}
           <Card>
             <ProductTableToolbar
               numSelected={table.selected.length}
               filterName={filterName}
               onFilterName={(event: React.ChangeEvent<HTMLInputElement>) => {
                 setFilterName(event.target.value);
-                table.onResetPage();
+                table.onResetPage(); 
+                fetchProducts(0, table.rowsPerPage, event.target.value); // fetch filtered
               }}
             />
+
             <Scrollbar>
               <TableContainer sx={{ minWidth: '100%' }}>
                 <Table sx={{ width: '100%', tableLayout: 'auto' }}>
                   <ProductTableHead
                     order={table.order}
                     orderBy={table.orderBy}
-                    rowCount={products.length}
+                    rowCount={totalProducts}
                     numSelected={table.selected.length}
                     onSort={table.onSort}
-                    onSelectAllRows={(checked) =>
-                      table.onSelectAllRows(
-                        checked,
-                        products.map((item: ProductProps) => item.id)
-                      )
-                    }
+                    onSelectAllRows={(checked) => table.onSelectAllRows(checked, products.map(p => p.id))}
                     headLabel={headLabel}
                   />
+
                   <TableBody>
-                    {dataFiltered
-                      .slice(
-                        table.page * table.rowsPerPage,
-                        table.page * table.rowsPerPage + table.rowsPerPage
-                      )
-                      .map((row, index) => (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={headLabel.length} style={{ textAlign: 'center', padding: 20 }}>
+                          <CircularProgress size={24} />
+                        </td>
+                      </tr>
+                    ) : (
+                      products.map((row, index) => (
                         <ProductTableRow
                           key={row.id}
                           row={row}
@@ -243,36 +278,44 @@ export function ProductView() {
                           serial={index + 1 + table.page * table.rowsPerPage}
                           categories={categories}
                           locations={locations}
-
-                          // Pass delete callback
                           onDelete={handleDeleteProduct}
-
-                          // Pass update callback for inline edit save
                           onEdit={handleUpdateProductInList}
-                          handleShowBarcode={(product) => {
-                            setSelectedProductForBarcode(product);
-                            setBarcodeDialogOpen(true);
-                          }}
-                        />                        
-                      ))}
+                          handleShowBarcode={handleShowBarcode}
+                        />
+                      ))
+                    )}
+
                     <TableEmptyRows
                       height={68}
-                      emptyRows={emptyRows(table.page, table.rowsPerPage, products.length)}
+                      emptyRows={emptyRows(table.page, table.rowsPerPage, totalProducts)}
                     />
+
                     {notFound && <TableNoData searchQuery={filterName} />}
                   </TableBody>
                 </Table>
               </TableContainer>
             </Scrollbar>
 
+            {/* Pagination */}
             <TablePagination
               component="div"
+              count={totalProducts}
               page={table.page}
-              count={products.length}
               rowsPerPage={table.rowsPerPage}
-              onPageChange={table.onChangePage}
-              rowsPerPageOptions={[10, 25, 50]}
-              onRowsPerPageChange={table.onChangeRowsPerPage}
+              onPageChange={(e, newPage) => {
+                table.onChangePage(e, newPage);
+                fetchProducts(newPage, table.rowsPerPage);
+              }}
+              rowsPerPageOptions={[25, 50, 100]}
+              onRowsPerPageChange={(event) => {
+                const target = event.target as HTMLInputElement;
+                const newRowsPerPage = parseInt(target.value, 10);
+
+                table.onChangeRowsPerPage(event);
+                table.onResetPage();
+
+                fetchProducts(0, newRowsPerPage);
+              }}
             />
           </Card>
         </Grid>
@@ -284,81 +327,81 @@ export function ProductView() {
           onClose={() => setBarcodeDialogOpen(false)}
           product={selectedProductForBarcode}
         />
-      )}     
+      )}
+
+      <Dialog open={downloadDialogOpen} onClose={() => setDownloadDialogOpen(false)}>
+        <DialogTitle>Select Columns to Export</DialogTitle>
+        <DialogContent>
+          <FormGroup>
+            {columns.map(col => (
+              <FormControlLabel
+                key={col.key}
+                control={
+                  <Checkbox
+                    checked={selectedColumns.includes(col.key)}
+                    onChange={() => toggleColumn(col.key)}
+                  />
+                }
+                label={col.label}
+              />
+            ))}
+          </FormGroup>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDownloadDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleDownload}>Download</Button>
+        </DialogActions>
+      </Dialog>
     </DashboardContent>
   );
 }
 
-function useTable() {
+// -----------------------------
+// useTable hook
+// -----------------------------
+function useTable(initialRowsPerPage = 25) {
   const [page, setPage] = useState(0);
-  const [orderBy, setOrderBy] = useState('itemName');
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [rowsPerPage, setRowsPerPage] = useState(initialRowsPerPage);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [orderBy, setOrderBy] = useState('itemName');
+  const [selected, setSelected] = useState<string[]>([]);
 
-  // List of valid sortable keys (should match your ProductProps keys)
-  const validSortKeys = new Set([
-    'uniqueId',
-    'itemName',
-    'brand',
-    'serialNumber',
-    'variants',
-    'category',
-    'rate',
-    'total_quantity',
-    'active',
-  ]);
+  const onResetPage = useCallback(() => setPage(0), []);
 
-  const onSort = useCallback(
-    (id: string) => {
-      // Guard against invalid sort keys (like serial, image, empty string)
-      if (!validSortKeys.has(id)) {
-        return;
-      }
+  const onChangePage = useCallback((_: unknown, newPage: number) => setPage(newPage), []);
 
-      const isAsc = orderBy === id && order === 'asc';
-      setOrder(isAsc ? 'desc' : 'asc');
-      setOrderBy(id);
+  const onChangeRowsPerPage = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, fetch?: () => void) => {
+      const target = event.target as HTMLInputElement;
+      const newRowsPerPage = parseInt(target.value, 10);
+      setRowsPerPage(newRowsPerPage);
+      setPage(0); // reset to first page
+
+      // Fetch immediately after state updated
+      if (fetch) fetch();
     },
-    [order, orderBy]
+    []
   );
+
+  const onSelectRow = useCallback((id: string) => {
+    setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  }, []);
 
   const onSelectAllRows = useCallback((checked: boolean, newSelecteds: string[]) => {
     setSelected(checked ? newSelecteds : []);
   }, []);
 
-  const onSelectRow = useCallback(
-    (inputValue: string) => {
-      const newSelected = selected.includes(inputValue)
-        ? selected.filter((value) => value !== inputValue)
-        : [...selected, inputValue];
-      setSelected(newSelected);
-    },
-    [selected]
-  );
-
-  const onResetPage = useCallback(() => {
-    setPage(0);
-  }, []);
-
-  const onChangePage = useCallback((event: unknown, newPage: number) => {
-    setPage(newPage);
-  }, []);
-
-  const onChangeRowsPerPage = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setRowsPerPage(parseInt(event.target.value, 10));
-      onResetPage();
-    },
-    [onResetPage]
-  );
+  const onSort = useCallback((id: string) => {
+    setOrder(orderBy === id && order === 'asc' ? 'desc' : 'asc');
+    setOrderBy(id);
+  }, [order, orderBy]);
 
   return {
     page,
+    rowsPerPage,
     order,
     orderBy,
     selected,
-    rowsPerPage,
     onSort,
     onSelectRow,
     onSelectAllRows,

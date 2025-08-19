@@ -1,3 +1,6 @@
+import type { ProductProps } from 'src/sections/product/product-table-row';
+
+import { useSnackbar } from 'notistack';
 import React, { useEffect, useState, useRef } from 'react';
 
 import {
@@ -30,11 +33,12 @@ type Location = { id: number; name: string };
 type NewProductDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newProduct: ProductProps) => void;
   initialBarcode?: string;
 };
 
 export default function NewProductDialog({ open, onClose, onSuccess, initialBarcode, }: NewProductDialogProps) {
+  const { enqueueSnackbar } = useSnackbar();
   const [categories, setCategories] = useState<Category[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,12 +115,20 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
         data.append('unique_id', barcode);
       }
 
-      await createProduct(data);
-      onSuccess();
+      const newProduct = await createProduct(data);
+
+      enqueueSnackbar(
+        `Product created successfully! ${newProduct.itemName} (${newProduct.uniqueId})`,
+        { variant: 'success' }
+      );
+      onSuccess(newProduct);
       onClose();
       resetForm();
     } catch (error) {
       console.error('❌ Error submitting product:', error);
+      enqueueSnackbar(
+        `Product creation failed! `, { variant: 'error' }
+      );
     } finally {
       setLoading(false);
     }

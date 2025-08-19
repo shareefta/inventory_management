@@ -102,15 +102,15 @@ export function ProductTableRow({
   const [descriptionText, setDescriptionText] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<ProductProps | null>(null);
-  const [products, setProducts] = useState<ProductProps[]>([]);
+  // const [products, setProducts] = useState<ProductProps[]>([]);
   const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductProps | null>(null);
 
-  const updateProductInTable = (productToUpdate: ProductProps) => {
-    setProducts((prevProducts) =>
-      prevProducts.map((p) => (p.id === productToUpdate.id ? productToUpdate : p))
-    );
-  };
+  // const updateProductInTable = (productToUpdate: ProductProps) => {
+  //   setProducts((prevProducts) =>
+  //     prevProducts.map((p) => (p.id === productToUpdate.id ? productToUpdate : p))
+  //   );
+  // };
 
   const handleItemClick = (desc: string) => {
     setDescriptionText(desc);
@@ -424,10 +424,10 @@ export function ProductTableRow({
           setEditDialogOpen(false);
           setProductToEdit(null);
         }}
-        onSuccess={(productToUpdate) => {
+        onSuccess={(updatedProductFromAPI) => {
           setEditDialogOpen(false);
           setProductToEdit(null);
-          updateProductInTable(productToUpdate);
+          onEdit?.(updatedProductFromAPI);
         }}
       />
       <BarcodeDialog

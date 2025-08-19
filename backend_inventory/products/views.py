@@ -10,6 +10,17 @@ import io
 import barcode
 from barcode.writer import ImageWriter
 from django.http import HttpResponse
+import openpyxl
+
+# ----------------------------
+# Pagination
+# ----------------------------
+from rest_framework.pagination import PageNumberPagination
+
+class ProductPagination(PageNumberPagination):
+    page_size = 25           # default rows per page
+    page_size_query_param = 'limit'  # allow frontend to control
+    max_page_size = 100
 
 # ----------------------------
 # Product ViewSet
@@ -23,6 +34,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['item_name', 'brand', 'serial_number']
     ordering_fields = ['item_name', 'rate', 'created_at']
+
+    pagination_class = ProductPagination
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -90,3 +103,73 @@ def generate_barcode(request, unique_id):
     
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+@api_view(['GET'])
+def active_product_count(request):
+    count = Product.objects.filter(active=True).count()
+    return Response({'count': count})
+
+@api_view(['GET'])
+def export_products_excel(request):
+    """
+    Export all product details including separate columns for each location
+    """
+    search = request.GET.get('search', None)
+    queryset = Product.objects.all().order_by('item_name')
+
+    if search:
+        queryset = queryset.filter(item_name__icontains=search)
+
+    # Get all location names
+    all_locations = list(
+        Location.objects.all().order_by('name').values_list('name', flat=True)
+    )
+
+    # Create workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Products"
+
+    # Header
+    headers = [
+        'Product ID',
+        'Item Name',
+        'Brand',
+        'Model No.',
+        'Variants',
+        'Category',
+        'Rate',
+        'Active',
+        'Description',
+        'Created At'
+    ] + all_locations  # add one column per location
+    ws.append(headers)
+
+    # Data rows
+    for p in queryset:
+        # Create a dict of location -> quantity for this product
+        loc_qty = {pl.location.name: pl.quantity for pl in p.product_locations.all()}
+
+        # Build row
+        row = [
+            p.unique_id,
+            p.item_name,
+            p.brand,
+            p.serial_number,
+            p.variants,
+            p.category.name if p.category else '',
+            float(p.rate),
+            'Yes' if p.active else 'No',
+            p.description or '',
+            p.created_at.strftime('%Y-%m-%d %H:%M'),
+        ] + [loc_qty.get(loc, 0) for loc in all_locations]  # quantity per location
+
+        ws.append(row)
+
+    # Prepare response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=products.xlsx'
+    wb.save(response)
+    return response

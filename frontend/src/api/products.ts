@@ -19,11 +19,20 @@ function triggerProductUpdate() {
   window.dispatchEvent(new Event('product-update'));
 }
 
-// ---- GET ALL PRODUCTS ----
-export async function getProducts(): Promise<ProductProps[]> {
-  const response = await axios.get(BASE_URL, { headers: getAuthHeaders() });
+export async function getActiveProductCount(): Promise<number> {
+  const response = await axios.get<{ count: number }>('https://razaworld.uk/api/products/active-count/', { headers: getAuthHeaders() });
+  console.log("Active product count API response:", response.data);
+  return response.data.count;
+}
 
-  return response.data.map((item: any) => ({
+// ---- GET PAGINATED PRODUCTS ----
+export async function getProducts(page = 1, limit = 25, search = ''): Promise<{ data: ProductProps[]; total: number }> {
+  const response = await axios.get(BASE_URL, {
+    headers: getAuthHeaders(),
+    params: { page, limit, search },
+  });
+
+  const products = response.data.results.map((item: any) => ({
     id: item.id,
     uniqueId: item.unique_id,
     itemName: item.item_name,
@@ -45,7 +54,13 @@ export async function getProducts(): Promise<ProductProps[]> {
       price: Number(sp.price),
     })) || [],
   }));
+
+  return {
+    data: products,
+    total: response.data.count,
+  };
 }
+
 
 // ---- GET PRODUCT BY BARCODE ----
 export async function getProductByBarcode(barcode: string): Promise<ProductProps> {
@@ -92,7 +107,18 @@ export async function createProduct(data: FormData): Promise<ProductProps> {
   const response = await axios.post(BASE_URL, data, { headers: getAuthHeaders(true) });
 
   triggerProductUpdate();
-  return response.data;
+
+  const raw = response.data;
+
+  // Map snake_case from API to camelCase for frontend
+  const product: ProductProps = {
+    ...raw,
+    itemName: raw.item_name,
+    uniqueId: raw.unique_id,
+    serialNumber: raw.serial_number,
+  };
+
+  return product;
 }
 
 // ---- CATEGORIES ----
@@ -112,13 +138,37 @@ export async function getLocations() {
 }
 
 // ---- UPDATE PRODUCT ----
-export async function updateProduct(id: string, data: any, isFormData = false) {
+export async function updateProduct(id: string, data: any, isFormData = false): Promise<ProductProps> {
   const response = await axios.put(`${BASE_URL}${id}/`, data, {
     headers: getAuthHeaders(isFormData),
   });
 
   triggerProductUpdate();
-  return response.data;
+
+  const item = response.data;
+
+  return {
+    id: item.id,
+    uniqueId: item.unique_id,
+    itemName: item.item_name,
+    brand: item.brand,
+    serialNumber: item.serial_number,
+    variants: item.variants,
+    category: item.category,
+    rate: Number(item.rate),
+    locations: item.locations.map((l: any) => ({
+      location: l.location,
+      quantity: l.quantity,
+    })),
+    total_quantity: item.total_quantity,
+    active: item.active,
+    image: item.image,
+    description: item.description,
+    section_prices: item.section_prices?.map((sp: any) => ({
+      section: sp.section,
+      price: Number(sp.price),
+    })) || [],
+  };
 }
 
 // ---- DELETE PRODUCT ----
@@ -133,4 +183,25 @@ export async function deleteProduct(id: string) {
     console.error('Delete API error:', error);
     throw error;
   }
+}
+
+export async function downloadProductsExcel(search?: string, columns?: string[]) {
+  const params: Record<string, string> = {};
+  if (search) params.search = search;
+  if (columns) params.columns = columns.join(',');
+
+  const response = await axios.get('https://razaworld.uk/api/products/export-excel/', {
+    headers: getAuthHeaders(),
+    params,
+    responseType: 'blob', // important for files
+  });
+
+  const blob = new Blob([response.data], { type: response.headers['content-type'] });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'products.xlsx');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }

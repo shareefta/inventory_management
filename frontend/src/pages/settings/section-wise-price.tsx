@@ -40,6 +40,7 @@ export default function SectionPricesPage() {
   const [selectedSectionId, setSelectedSectionId] = useState<number | ''>('');
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [applyToAll, setApplyToAll] = useState(false); // ✅ new checkbox state
+  const [totalProducts, setTotalProducts] = useState(0);
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
@@ -53,7 +54,8 @@ export default function SectionPricesPage() {
         const sectionsRes = await getSections();
         setSections(sectionsRes.data);
         const productsRes = await getProducts();
-        setProducts(productsRes);
+        setProducts(productsRes.data);
+        setTotalProducts(productsRes.total);
       } catch (error) {
         console.error(error);
         enqueueSnackbar('Failed to fetch sections or products', { variant: 'error' });

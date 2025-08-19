@@ -1,6 +1,7 @@
 import type { LocationEntry, CategoryEntry } from 'src/sections/product/product-table-row';
 import type { ProductProps, ProductLocationEntry } from 'src/sections/product/product-table-row';
 
+import { useSnackbar } from 'notistack';
 import { useEffect, useState, useRef } from 'react';
 
 import {
@@ -17,21 +18,20 @@ type ProductEditDialogProps = {
   open: boolean;
   product: ProductProps | null;
   onClose: () => void;
+  onSuccess?: (updatedProduct: ProductProps) => void;
   categories: CategoryEntry[];
   locations: LocationEntry[];
-  onSuccess?: (updatedProduct: ProductProps) => void; // optional callback
-  onSave?: (updated: ProductProps) => void;
 };
 
 export default function ProductEditDialog({
   open,
   product,
   onClose,
+  onSuccess,  
   categories,
   locations,
-  onSuccess,
-  onSave
 }: ProductEditDialogProps) {
+  const { enqueueSnackbar } = useSnackbar();
   const [formData, setFormData] = useState<ProductProps | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const lastLocationInputRef = useRef<HTMLInputElement | null>(null);
@@ -48,6 +48,16 @@ export default function ProductEditDialog({
       setPreviewUrl(product.image ?? null);
     }
   }, [product]);
+
+  // reset state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setFormData(null);
+      setPreviewUrl(null);
+    }
+  }, [open]);
+
+  if (!formData) return null;
 
   const handleFieldChange = (field: keyof ProductProps, value: any) => {
     setFormData((prev) => prev ? { ...prev, [field]: value } : prev);
@@ -118,12 +128,11 @@ export default function ProductEditDialog({
 
     try {
       const updated = await updateProduct(formData.id.toString(), form, true);
-      onSave?.(updated);
       onSuccess?.(updated);
       onClose();
     } catch (error) {
       console.error('Failed to update product:', error);
-      alert('Update failed. Please try again.');
+      enqueueSnackbar('Update failed. Please try again.', { variant: 'error' });
     }
   };
 

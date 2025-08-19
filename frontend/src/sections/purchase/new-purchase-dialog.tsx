@@ -69,7 +69,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
 
     Promise.all([getProducts(), getLocations()])
       .then(([prods, locs]) => {
-        setProducts(prods);
+        setProducts(prods.data);
         setLocations(locs);
       })
       .catch(console.error);
