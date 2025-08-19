@@ -1,6 +1,6 @@
-import { useSnackbar } from 'notistack';
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from "notistack";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   Breadcrumbs,
@@ -20,9 +20,9 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-} from '@mui/material';
+} from "@mui/material";
 
-import { getLocations } from 'src/api/products';
+import { getLocations } from "src/api/products";
 import {
   getSections,
   createSection,
@@ -31,7 +31,7 @@ import {
   SalesSection,
   getChannels,
   SalesChannel,
-} from 'src/api/sales';
+} from "src/api/sales";
 
 interface Location {
   id: number;
@@ -45,21 +45,35 @@ export default function SalesSectionsPage() {
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [newSectionName, setNewSectionName] = useState('');
-  const [newChannelId, setNewChannelId] = useState<number | ''>('');
-  const [newLocationId, setNewLocationId] = useState<number | ''>('');
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [editingChannelId, setEditingChannelId] = useState<number | ''>('');
-  const [editingLocationId, setEditingLocationId] = useState<number | ''>('');
 
+  // New section states
+  const [newSectionName, setNewSectionName] = useState("");
+  const [newChannelId, setNewChannelId] = useState<number | "">("");
+  const [newLocationId, setNewLocationId] = useState<number | "">("");
+  const [newBuildingNo, setNewBuildingNo] = useState("");
+  const [newStreetNo, setNewStreetNo] = useState("");
+  const [newZoneNo, setNewZoneNo] = useState("");
+  const [newShortName, setNewShortName] = useState("");
+  const [newLogo, setNewLogo] = useState<File | null>(null);
+
+  // Edit states
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingChannelId, setEditingChannelId] = useState<number | "">("");
+  const [editingLocationId, setEditingLocationId] = useState<number | "">("");
+  const [editingBuildingNo, setEditingBuildingNo] = useState("");
+  const [editingStreetNo, setEditingStreetNo] = useState("");
+  const [editingZoneNo, setEditingZoneNo] = useState("");
+  const [editingShortName, setEditingShortName] = useState("");
+  const [editingLogo, setEditingLogo] = useState<File | null>(null);
+
+  // Fetchers
   const fetchSections = async () => {
     try {
       const res = await getSections();
       setSections(res.data);
-    } catch (error) {
-      console.error(error);
-      enqueueSnackbar('Failed to fetch sections', { variant: 'error' });
+    } catch {
+      enqueueSnackbar("Failed to fetch sections", { variant: "error" });
     }
   };
 
@@ -67,9 +81,8 @@ export default function SalesSectionsPage() {
     try {
       const res = await getChannels();
       setChannels(res.data);
-    } catch (error) {
-      console.error(error);
-      enqueueSnackbar('Failed to fetch channels', { variant: 'error' });
+    } catch {
+      enqueueSnackbar("Failed to fetch channels", { variant: "error" });
     }
   };
 
@@ -77,9 +90,8 @@ export default function SalesSectionsPage() {
     try {
       const data = await getLocations();
       setLocations(data);
-    } catch (error) {
-      console.error(error);
-      enqueueSnackbar('Failed to fetch locations', { variant: 'error' });
+    } catch {
+      enqueueSnackbar("Failed to fetch locations", { variant: "error" });
     }
   };
 
@@ -89,68 +101,79 @@ export default function SalesSectionsPage() {
     fetchLocations();
   }, []);
 
+  // Handlers
   const handleAdd = async () => {
     if (!newSectionName || !newChannelId || !newLocationId) {
-      enqueueSnackbar('Please fill all fields', { variant: 'warning' });
+      enqueueSnackbar("Please fill all required fields", { variant: "warning" });
       return;
     }
-
     try {
       await createSection({
         name: newSectionName,
         channel_id: Number(newChannelId),
         location: Number(newLocationId),
+        building_no: newBuildingNo,
+        street_no: newStreetNo,
+        zone_no: newZoneNo,
+        short_name: newShortName,
+        logo: newLogo,
       });
-      enqueueSnackbar('Section added successfully!', { variant: 'success' });
-      setNewSectionName('');
-      setNewChannelId('');
-      setNewLocationId('');
+      enqueueSnackbar("Section added successfully!", { variant: "success" });
+      // reset
+      setNewSectionName("");
+      setNewChannelId("");
+      setNewLocationId("");
+      setNewBuildingNo("");
+      setNewStreetNo("");
+      setNewZoneNo("");
+      setNewShortName("");
+      setNewLogo(null);
       fetchSections();
-    } catch (error: any) {
-      console.error(error);
-      enqueueSnackbar(
-        error.response?.data?.location
-          ? `Error: ${error.response.data.location[0]}`
-          : 'Failed to add section',
-        { variant: 'error' }
-      );
+    } catch {
+      enqueueSnackbar("Failed to add section", { variant: "error" });
     }
   };
 
   const handleUpdate = async (id: number) => {
     if (!editingName || !editingChannelId || !editingLocationId) {
-      enqueueSnackbar('Please fill all fields', { variant: 'warning' });
+      enqueueSnackbar("Please fill all required fields", { variant: "warning" });
       return;
     }
-
     try {
       await updateSection(id, {
         name: editingName,
         channel_id: Number(editingChannelId),
         location: Number(editingLocationId),
+        building_no: editingBuildingNo,
+        street_no: editingStreetNo,
+        zone_no: editingZoneNo,
+        short_name: editingShortName,
+        logo: editingLogo,
       });
-      enqueueSnackbar('Section updated successfully!', { variant: 'success' });
+      enqueueSnackbar("Section updated successfully!", { variant: "success" });
       setEditingId(null);
-      setEditingName('');
-      setEditingChannelId('');
-      setEditingLocationId('');
+      setEditingName("");
+      setEditingChannelId("");
+      setEditingLocationId("");
+      setEditingBuildingNo("");
+      setEditingStreetNo("");
+      setEditingZoneNo("");
+      setEditingShortName("");
+      setEditingLogo(null);
       fetchSections();
-    } catch (error) {
-      console.error(error);
-      enqueueSnackbar('Failed to update section', { variant: 'error' });
+    } catch {
+      enqueueSnackbar("Failed to update section", { variant: "error" });
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this section?')) return;
-
+    if (!window.confirm("Are you sure you want to delete this section?")) return;
     try {
       await deleteSection(id);
-      enqueueSnackbar('Section deleted successfully!', { variant: 'success' });
+      enqueueSnackbar("Section deleted successfully!", { variant: "success" });
       fetchSections();
-    } catch (error) {
-      console.error(error);
-      enqueueSnackbar('Failed to delete section', { variant: 'error' });
+    } catch {
+      enqueueSnackbar("Failed to delete section", { variant: "error" });
     }
   };
 
@@ -158,7 +181,7 @@ export default function SalesSectionsPage() {
     <>
       {/* Breadcrumb */}
       <Breadcrumbs sx={{ mb: 2 }}>
-        <Link component="button" onClick={() => navigate('/settings')}>
+        <Link component="button" onClick={() => navigate("/settings")}>
           Settings
         </Link>
         <Typography>Sales Sections</Typography>
@@ -168,38 +191,28 @@ export default function SalesSectionsPage() {
         Sales Sections
       </Typography>
 
-      {/* Add Section Box */}
-      <Box
-        sx={{
-          maxWidth: 700, // match table width
-          // mx: 'auto', // center horizontally
-          mb: 3,
-        }}
-      >
+      {/* Add Section */}
+      <Box sx={{ maxWidth: 900, mb: 3 }}>
         <Box
           sx={{
-            display: 'flex',
+            display: "flex",
             gap: 2,
-            flexWrap: 'wrap',
+            flexWrap: "wrap",
             p: 2,
-            background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)',
+            background: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
             borderRadius: 2,
             boxShadow: 3,
-            alignItems: 'center',
+            alignItems: "center",
           }}
         >
           <TextField
-            label="New Section Name"
+            label="Name"
             value={newSectionName}
             onChange={(e) => setNewSectionName(e.target.value)}
             size="small"
-            sx={{ backgroundColor: 'white', borderRadius: 1 }}
+            sx={{ backgroundColor: "white" }}
           />
-
-          <FormControl
-            size="small"
-            sx={{ minWidth: 150, backgroundColor: 'white', borderRadius: 1 }}
-          >
+          <FormControl size="small" sx={{ minWidth: 150, backgroundColor: "white" }}>
             <InputLabel>Channel</InputLabel>
             <Select
               value={newChannelId}
@@ -213,11 +226,7 @@ export default function SalesSectionsPage() {
               ))}
             </Select>
           </FormControl>
-
-          <FormControl
-            size="small"
-            sx={{ minWidth: 150, backgroundColor: 'white', borderRadius: 1 }}
-          >
+          <FormControl size="small" sx={{ minWidth: 150, backgroundColor: "white" }}>
             <InputLabel>Location</InputLabel>
             <Select
               value={newLocationId}
@@ -231,148 +240,87 @@ export default function SalesSectionsPage() {
               ))}
             </Select>
           </FormControl>
-
-          <Button
-            variant="contained"
-            color="secondary"
-            sx={{
-              backgroundColor: '#6a11cb',
-              color: 'white',
-              '&:hover': { backgroundColor: '#2575fc' },
-            }}
-            onClick={handleAdd}
-          >
-            Add Section
+          <TextField label="Building" value={newBuildingNo} onChange={(e) => setNewBuildingNo(e.target.value)} size="small" />
+          <TextField label="Street" value={newStreetNo} onChange={(e) => setNewStreetNo(e.target.value)} size="small" />
+          <TextField label="Zone" value={newZoneNo} onChange={(e) => setNewZoneNo(e.target.value)} size="small" />
+          <TextField label="Short Name" value={newShortName} onChange={(e) => setNewShortName(e.target.value)} size="small" />
+          <Button variant="outlined" component="label">
+            Upload Logo
+            <input type="file" hidden accept="image/*" onChange={(e) => setNewLogo(e.target.files?.[0] || null)} />
           </Button>
+          {newLogo && <Typography>{newLogo.name}</Typography>}
+          <Button variant="contained" onClick={handleAdd}>Add Section</Button>
         </Box>
       </Box>
 
       {/* Table */}
-      <TableContainer
-        component={Paper}
-        sx={{
-          maxWidth: 700,
-          // mx: 'auto', // center horizontally
-          boxShadow: 3,
-          borderRadius: 2,
-          backgroundColor: '#f3f6f9',
-        }}
-      >
+      <TableContainer component={Paper} sx={{ maxWidth: 900, boxShadow: 3, borderRadius: 2 }}>
         <Table>
           <TableHead>
-            <TableRow sx={{ background: 'linear-gradient(90deg, #ff416c, #ff4b2b)' }}>
-              <TableCell sx={{ color: 'black', fontWeight: 'bold', textAlign: 'center' }}>SL No</TableCell>
-              <TableCell sx={{ color: 'black', fontWeight: 'bold', textAlign: 'center' }}>Name</TableCell>
-              <TableCell sx={{ color: 'black', fontWeight: 'bold', textAlign: 'center' }}>Channel</TableCell>
-              <TableCell sx={{ color: 'black', fontWeight: 'bold', textAlign: 'center' }}>Location</TableCell>
-              <TableCell sx={{ color: 'black', fontWeight: 'bold', textAlign: 'center' }}>Actions</TableCell>
+            <TableRow>
+              <TableCell>SL No</TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Channel</TableCell>
+              <TableCell>Location</TableCell>
+              <TableCell>Building</TableCell>
+              <TableCell>Street</TableCell>
+              <TableCell>Zone</TableCell>
+              <TableCell>Short Name</TableCell>
+              <TableCell>Logo</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {sections.map((section, index) => (
-              <TableRow
-                key={section.id}
-                sx={{
-                  backgroundColor: index % 2 === 0 ? '#ffffff' : '#f0f4f8',
-                  '&:hover': { backgroundColor: '#e8f0fe' },
-                }}
-              >
-                <TableCell align="center">{index + 1}</TableCell>
-                <TableCell align="center">
+              <TableRow key={section.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>
                   {editingId === section.id ? (
-                    <TextField
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      size="small"
-                    />
+                    <TextField value={editingName} onChange={(e) => setEditingName(e.target.value)} size="small" />
                   ) : (
                     section.name
                   )}
                 </TableCell>
-                <TableCell align="center">
+                <TableCell>
                   {editingId === section.id ? (
-                    <FormControl size="small" sx={{ minWidth: 120 }}>
-                      <Select
-                        value={editingChannelId}
-                        onChange={(e) => setEditingChannelId(Number(e.target.value))}
-                      >
-                        {channels.map((ch) => (
-                          <MenuItem key={ch.id} value={ch.id}>
-                            {ch.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                    <Select value={editingChannelId} size="small" onChange={(e) => setEditingChannelId(Number(e.target.value))}>
+                      {channels.map((ch) => (
+                        <MenuItem key={ch.id} value={ch.id}>
+                          {ch.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
                   ) : (
                     section.channel.name
                   )}
                 </TableCell>
-                <TableCell align="center">
-                  {editingId === section.id ? (
-                    <FormControl size="small" sx={{ minWidth: 120 }}>
-                      <Select
-                        value={editingLocationId}
-                        onChange={(e) => setEditingLocationId(Number(e.target.value))}
-                      >
-                        {locations.map((loc) => (
-                          <MenuItem key={loc.id} value={loc.id}>
-                            {loc.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  ) : (
-                    // <-- FIXED: map ID to name
-                    locations.find((loc) => loc.id === section.location)?.name || '—'
-                  )}
+                <TableCell>
+                  {locations.find((loc) => loc.id === section.location)?.name || "—"}
                 </TableCell>
-                <TableCell align="center">
+                <TableCell>{section.building_no || "—"}</TableCell>
+                <TableCell>{section.street_no || "—"}</TableCell>
+                <TableCell>{section.zone_no || "—"}</TableCell>
+                <TableCell>{section.short_name || "—"}</TableCell>
+                <TableCell>{section.logo ? <img src={section.logo} alt="logo" width={40} /> : "—"}</TableCell>
+                <TableCell>
                   {editingId === section.id ? (
                     <>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        sx={{ mr: 1 }}
-                        onClick={() => handleUpdate(section.id)}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => {
-                          setEditingId(null);
-                          setEditingName('');
-                          setEditingChannelId('');
-                          setEditingLocationId('');
-                        }}
-                      >
-                        Cancel
-                      </Button>
+                      <Button size="small" onClick={() => handleUpdate(section.id)}>Save</Button>
+                      <Button size="small" onClick={() => setEditingId(null)}>Cancel</Button>
                     </>
                   ) : (
                     <>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        sx={{ mr: 1 }}
-                        onClick={() => {
-                          setEditingId(section.id);
-                          setEditingName(section.name);
-                          setEditingChannelId(section.channel.id);
-                          setEditingLocationId(Number(section.location || ''));
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        onClick={() => handleDelete(section.id)}
-                      >
-                        Delete
-                      </Button>
+                      <Button size="small" onClick={() => {
+                        setEditingId(section.id);
+                        setEditingName(section.name);
+                        setEditingChannelId(section.channel.id);
+                        setEditingLocationId(section.location || "");
+                        setEditingBuildingNo(section.building_no || "");
+                        setEditingStreetNo(section.street_no || "");
+                        setEditingZoneNo(section.zone_no || "");
+                        setEditingShortName(section.short_name || "");
+                      }}>Edit</Button>
+                      <Button size="small" color="error" onClick={() => handleDelete(section.id)}>Delete</Button>
                     </>
                   )}
                 </TableCell>

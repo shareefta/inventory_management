@@ -61,7 +61,6 @@ export async function getProducts(page = 1, limit = 25, search = ''): Promise<{ 
   };
 }
 
-
 // ---- GET PRODUCT BY BARCODE ----
 export async function getProductByBarcode(barcode: string): Promise<ProductProps> {
   const response = await axios.get(BARCODE_URL, {

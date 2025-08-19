@@ -10,7 +10,15 @@ export interface SalesSection {
   id: number;
   name: string;
   channel: SalesChannel;
+  channel_id?: number;
   location?: number;
+
+  // ✅ new fields
+  building_no?: string;
+  street_no?: string;
+  zone_no?: string;
+  short_name?: string;
+  logo?: string;
 }
 
 export interface SectionProductPrice {
@@ -93,15 +101,48 @@ export const deleteChannel = (id: number) => api.delete(`channels/${id}/`);
 
 // --- Sections ---
 export const getSections = (channelId?: number) =>
-  api.get<SalesSection[]>("sections/", { params: channelId ? { channel_id: channelId } : {} });
+  api.get<SalesSection[]>("sections/", {
+    params: channelId ? { channel_id: channelId } : {},
+  });
 
-export const createSection = (section: { name: string; channel_id: number; location?: number }) =>
-  api.post("sections/", section);
+// include all section fields except `id` (backend generates it)
+export type SectionPayload = {
+  name: string;
+  channel_id: number;
+  location?: number;
+  building_no?: string;
+  street_no?: string;
+  zone_no?: string;
+  short_name?: string;
+  logo?: File | string | null; // File when uploading, string when updating
+};
 
-export const updateSection = (id: number, section: { name: string; channel_id: number; location?: number }) =>
-  api.put(`sections/${id}/`, section);
+export const createSection = (section: SectionPayload) => {
+  const formData = new FormData();
+  Object.entries(section).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, value as any);
+    }
+  });
+  return api.post<SalesSection>("sections/", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
 
-export const deleteSection = (id: number) => api.delete(`sections/${id}/`);
+export const updateSection = (id: number, section: SectionPayload) => {
+  const formData = new FormData();
+  Object.entries(section).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, value as any);
+    }
+  });
+  return api.put<SalesSection>(`sections/${id}/`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const deleteSection = (id: number) =>
+  api.delete(`sections/${id}/`);
 
 // --- Section Product Prices ---
 export const getSectionPrices = (sectionId: number) =>

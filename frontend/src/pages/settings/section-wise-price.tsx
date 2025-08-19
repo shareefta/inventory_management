@@ -45,7 +45,7 @@ export default function SectionPricesPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
 
-  const totalPages = Math.ceil(products.length / perPage);
+  const totalPages = Math.ceil(totalProducts / perPage);
   const maxButtons = 5;
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function SectionPricesPage() {
       try {
         const sectionsRes = await getSections();
         setSections(sectionsRes.data);
-        const productsRes = await getProducts();
+        const productsRes = await getProducts(page, perPage);
         setProducts(productsRes.data);
         setTotalProducts(productsRes.total);
       } catch (error) {
@@ -62,7 +62,7 @@ export default function SectionPricesPage() {
       }
     };
     fetchData();
-  }, [enqueueSnackbar]);
+  }, [enqueueSnackbar, page, perPage]);
 
   useEffect(() => {
     if (!selectedSectionId) return;
@@ -255,16 +255,25 @@ export default function SectionPricesPage() {
               zIndex: 1100,
             }}
           >
-            <TableRow sx={{ background: 'linear-gradient(90deg, #1f1f1f, #3a3a3a)' }}>
-              {['SL No', 'Barcode', 'Product Name', 'Model Number', 'Rate', 'Selling Price'].map((head) => (
+            <TableRow
+              sx={{
+                background: 'linear-gradient(90deg, #00f5d4, #009eaa)',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+              }}
+            >
+              {['SL No', 'Barcode', 'Product Name', 'Model Number', 'Rate', 'Selling Price'].map((head, index, arr) => (
                 <TableCell
                   key={head}
                   sx={{
-                    color: 'black',
+                    background: 'transparent',
+                    color: '#fff',
                     fontWeight: 'bold',
                     textAlign: 'center',
                     fontSize: '0.95rem',
-                    borderBottom: '2px solid #444',
+                    borderBottom: '3px solid rgba(255,255,255,0.5)',
+                    textShadow: '1px 1px 3px rgba(0,0,0,0.4)',
+                    borderTopLeftRadius: index === 0 ? '8px' : 0,
+                    borderTopRightRadius: index === arr.length - 1 ? '8px' : 0,
                   }}
                 >
                   {head}
@@ -274,7 +283,7 @@ export default function SectionPricesPage() {
           </TableHead>
 
           <TableBody>
-            {products.slice((page - 1) * perPage, page * perPage).map((product, index) => (
+            {products.map((product, index) => (
               <TableRow
                 key={product.id}
                 sx={{

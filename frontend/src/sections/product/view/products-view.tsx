@@ -187,7 +187,7 @@ export function ProductView() {
   return (
     <DashboardContent maxWidth="xl">
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12 }} >
+        <Grid size={{ sm: 12 }} >
           {/* Header */}
           <Box sx={{ mb: 5, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h4" sx={{ flexGrow: 1 }}>Products</Typography>
@@ -244,7 +244,7 @@ export function ProductView() {
               onFilterName={(event: React.ChangeEvent<HTMLInputElement>) => {
                 setFilterName(event.target.value);
                 table.onResetPage(); 
-                fetchProducts(0, table.rowsPerPage, event.target.value); // fetch filtered
+                fetchProducts(0, table.rowsPerPage, event.target.value);
               }}
             />
 

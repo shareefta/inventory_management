@@ -24,7 +24,6 @@ class SalesChannelSerializer(serializers.ModelSerializer):
         model = SalesChannel
         fields = ["id", "name"]
 
-
 class SalesSectionSerializer(serializers.ModelSerializer):
     channel = SalesChannelSerializer(read_only=True)
     channel_id = serializers.PrimaryKeyRelatedField(
@@ -34,8 +33,18 @@ class SalesSectionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SalesSection
-        fields = ["id", "name", "location", "channel", "channel_id"]
-
+        fields = [
+            "id",
+            "name",
+            "short_name",
+            "building_no",
+            "street_no",
+            "zone_no",
+            "logo",
+            "location",
+            "channel",
+            "channel_id",
+        ]
 
 class SectionProductPriceSerializer(serializers.ModelSerializer):
     class Meta:

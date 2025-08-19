@@ -1,5 +1,5 @@
 # sales/views.py
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, parsers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import serializers
@@ -32,6 +32,7 @@ class SalesSectionViewSet(viewsets.ModelViewSet):
     queryset = SalesSection.objects.select_related("channel", "location").all()
     serializer_class = SalesSectionSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_queryset(self):
         qs = super().get_queryset()
