@@ -57,11 +57,10 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
         return qs
 
     @action(detail=False, methods=["post"], url_path="bulk-set")
-    def bulk_set(self, request):        
+    def bulk_set(self, request):
         sections = request.data.get("sections")
         items = request.data.get("items", [])
 
-        # Normalize to a list
         if isinstance(sections, int):
             sections = [sections]
         elif not isinstance(sections, list) or not all(isinstance(s, int) for s in sections):
@@ -74,11 +73,18 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
         for section_id in sections:
             for row in items:
                 product = row.get("product")
-                price = row.get("price")
-                if not product or price is None:
+                price = row.get("price", None)
+
+                if not product:
                     continue
+
                 obj, was_created = SectionProductPrice.objects.update_or_create(
-                    section_id=section_id, product_id=product, defaults={"price": price}
+                    section_id=section_id,
+                    product_id=product,
+                    defaults={
+                        "selling_price": price,
+                        "is_manual": price is not None,
+                    },
                 )
                 created += int(was_created)
                 updated += int(not was_created)
@@ -86,7 +92,7 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
         return Response({"created": created, "updated": updated})
 
     @action(detail=False, methods=["get"], url_path="lookup")
-    def lookup(self, request):        
+    def lookup(self, request):
         section_id = request.query_params.get("section_id")
         product_id = request.query_params.get("product")
         barcode = request.query_params.get("barcode")
@@ -102,14 +108,30 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
             if not prod:
                 return Response({"detail": "Product not found for barcode"}, status=404)
             product_id = prod.id
+        else:
+            prod = Product.objects.filter(id=product_id).first()
 
         spp = SectionProductPrice.objects.filter(section_id=section_id, product_id=product_id).first()
-        if not spp:
-            return Response({"detail": "Price not found for this section/product"}, status=404)
+        if spp:
+            return Response({
+                "product": int(product_id),
+                "section": int(section_id),
+                "price": str(spp.final_price),
+                "is_manual": spp.is_manual,
+            })
 
-        return Response({"product": int(product_id), "section": int(section_id), "price": str(spp.price)})
+        # If no SectionProductPrice exists → fallback to auto
+        if prod:
+            auto_price = round(prod.cost_price * Decimal("1.2"), 2)
+            return Response({
+                "product": int(product_id),
+                "section": int(section_id),
+                "price": str(auto_price),
+                "is_manual": False,
+            })
+
+        return Response({"detail": "Price not found for this section/product"}, status=404)
     
-
 class SaleViewSet(viewsets.ModelViewSet):
     queryset = Sale.objects.select_related("channel", "section", "created_by").prefetch_related("items")
     serializer_class = SaleSerializer

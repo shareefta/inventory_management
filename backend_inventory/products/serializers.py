@@ -7,6 +7,7 @@ from rest_framework.validators import UniqueValidator
 import uuid
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
+from sales.models import SectionProductPrice
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,19 +42,38 @@ class ProductSerializer(serializers.ModelSerializer):
     total_quantity = serializers.SerializerMethodField()
 
     image = serializers.ImageField(required=False, allow_null=True)
+
+    section_prices = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
         fields = [
             'id', 'unique_id', 'item_name', 'brand', 'serial_number', 'variants',
             'category', 'category_id', 'rate', 'active', 'image', 'created_at', 
-            'locations', 'total_quantity', 'description'
+            'locations', 'total_quantity', 'description' , 'section_prices'
             ]
 
-        read_only_fields = ['id', 'unique_id', 'created_at']
-        
+        read_only_fields = ['id', 'unique_id', 'created_at', 'section_prices']
+
     def get_total_quantity(self, obj):
         return obj.product_locations.aggregate(total=Sum('quantity'))['total'] or 0
+    
+    def get_section_prices(self, obj):
+        # Use prefetched data if available
+        prices = getattr(obj, 'prefetched_section_prices', None)
+        if prices is None:
+            prices = SectionProductPrice.objects.filter(product=obj).select_related('section')
+        
+        return [
+            {
+                'section_id': p.section.id,
+                'section_name': p.section.name,
+                'auto_price': p.auto_price,
+                'manual_price': p.manual_price,
+                'price': p.price,
+            }
+            for p in prices
+        ]
 
     def create(self, validated_data):
         request = self.context.get('request')

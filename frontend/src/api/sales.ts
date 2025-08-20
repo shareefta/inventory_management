@@ -25,7 +25,8 @@ export interface SectionProductPrice {
   id: number;
   section: number;
   product: number;
-  price: string;
+  price: string;      // this corresponds to final_price
+  is_manual: boolean; // whether the user has manually overridden the price
 }
 
 export interface SaleItem {
@@ -151,7 +152,7 @@ export const getSectionPrices = (sectionId: number) =>
 
 export const bulkSetSectionPrices = (
   sections: number | number[],
-  items: { product: number; price: string }[]
+  items: { product: number; price?: string | null }[]
 ) =>
   api.post("prices/bulk-set/", { sections, items });
 

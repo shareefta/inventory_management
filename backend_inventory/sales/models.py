@@ -3,6 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import models, transaction
 from django.utils import timezone
 from django.conf import settings
+from decimal import Decimal
 
 # Use string app labels to avoid circular imports; they match your current setup
 # (Category, Location, Product live in "products")
@@ -24,7 +25,6 @@ class SalesChannel(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class SalesSection(models.Model):
     """
@@ -50,19 +50,30 @@ class SalesSection(models.Model):
     def __str__(self):
         return f"{self.channel.name} - {self.name}"
 
-
 class SectionProductPrice(models.Model):
     section = models.ForeignKey(SalesSection, on_delete=models.CASCADE, related_name="prices")
     product = models.ForeignKey("products.Product", on_delete=models.CASCADE, related_name="section_prices")
-    price = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # optional manual override
+    selling_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_manual = models.BooleanField(default=False)
 
     class Meta:
         unique_together = (("section", "product"),)
         indexes = [models.Index(fields=["section", "product"])]
 
     def __str__(self):
-        return f"{self.section} - {self.product} @ {self.price}"
+        return f"{self.section} - {self.product} @ {self.final_price}"
 
+    @property
+    def final_price(self):
+        """
+        Returns either manual selling_price or cost+20% if not manual.
+        """
+        if self.is_manual and self.selling_price is not None:
+            return self.selling_price
+        # fallback → use product.cost + 20%
+        return round(self.product.cost_price * Decimal("1.2"), 2)
 
 class Sale(models.Model):
     PAYMENT_MODES = [
@@ -94,7 +105,6 @@ class Sale(models.Model):
 
     def __str__(self):
         return f"Sale #{self.pk} • {self.channel.name}/{self.section.name} • {self.sale_datetime:%Y-%m-%d %H:%M}"
-
 
 class SaleItem(models.Model):
     """

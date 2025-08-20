@@ -192,7 +192,7 @@ export default function SalesSectionsPage() {
       </Typography>
 
       {/* Add Section */}
-      <Box sx={{ maxWidth: 900, mb: 3 }}>
+      <Box sx={{ maxWidth: 1200, mb: 3 }}>
         <Box
           sx={{
             display: "flex",
@@ -240,21 +240,52 @@ export default function SalesSectionsPage() {
               ))}
             </Select>
           </FormControl>
-          <TextField label="Building" value={newBuildingNo} onChange={(e) => setNewBuildingNo(e.target.value)} size="small" />
-          <TextField label="Street" value={newStreetNo} onChange={(e) => setNewStreetNo(e.target.value)} size="small" />
-          <TextField label="Zone" value={newZoneNo} onChange={(e) => setNewZoneNo(e.target.value)} size="small" />
-          <TextField label="Short Name" value={newShortName} onChange={(e) => setNewShortName(e.target.value)} size="small" />
-          <Button variant="outlined" component="label">
+          <TextField
+            label="Building"
+            value={newBuildingNo}
+            onChange={(e) => setNewBuildingNo(e.target.value)}
+            size="small"
+            sx={{ backgroundColor: "white" }}
+          />
+          <TextField
+            label="Street"
+            value={newStreetNo}
+            onChange={(e) => setNewStreetNo(e.target.value)}
+            size="small"
+            sx={{ backgroundColor: "white" }}
+          />
+          <TextField
+            label="Zone"
+            value={newZoneNo}
+            onChange={(e) => setNewZoneNo(e.target.value)}
+            size="small"
+            sx={{ backgroundColor: "white" }}
+          />
+          <TextField
+            label="Short Name"
+            value={newShortName}
+            onChange={(e) => setNewShortName(e.target.value)}
+            size="small"
+            sx={{ backgroundColor: "white" }}
+          />
+          <Button variant="outlined" component="label" size="small">
             Upload Logo
-            <input type="file" hidden accept="image/*" onChange={(e) => setNewLogo(e.target.files?.[0] || null)} />
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={(e) => setNewLogo(e.target.files?.[0] || null)}
+            />
           </Button>
           {newLogo && <Typography>{newLogo.name}</Typography>}
-          <Button variant="contained" onClick={handleAdd}>Add Section</Button>
+          <Button variant="contained" onClick={handleAdd}>
+            Add Section
+          </Button>
         </Box>
       </Box>
 
       {/* Table */}
-      <TableContainer component={Paper} sx={{ maxWidth: 900, boxShadow: 3, borderRadius: 2 }}>
+      <TableContainer component={Paper} sx={{ maxWidth: 1200, boxShadow: 3, borderRadius: 2 }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -274,16 +305,30 @@ export default function SalesSectionsPage() {
             {sections.map((section, index) => (
               <TableRow key={section.id}>
                 <TableCell>{index + 1}</TableCell>
+
+                {/* Name */}
                 <TableCell>
                   {editingId === section.id ? (
-                    <TextField value={editingName} onChange={(e) => setEditingName(e.target.value)} size="small" />
+                    <TextField
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      size="small"
+                      sx={{ backgroundColor: "white" }}
+                    />
                   ) : (
                     section.name
                   )}
                 </TableCell>
+
+                {/* Channel */}
                 <TableCell>
                   {editingId === section.id ? (
-                    <Select value={editingChannelId} size="small" onChange={(e) => setEditingChannelId(Number(e.target.value))}>
+                    <Select
+                      value={editingChannelId}
+                      size="small"
+                      onChange={(e) => setEditingChannelId(Number(e.target.value))}
+                      sx={{ backgroundColor: "white" }}
+                    >
                       {channels.map((ch) => (
                         <MenuItem key={ch.id} value={ch.id}>
                           {ch.name}
@@ -294,33 +339,136 @@ export default function SalesSectionsPage() {
                     section.channel.name
                   )}
                 </TableCell>
+
+                {/* Location */}
                 <TableCell>
-                  {locations.find((loc) => loc.id === section.location)?.name || "—"}
+                  {editingId === section.id ? (
+                    <Select
+                      value={editingLocationId}
+                      size="small"
+                      onChange={(e) => setEditingLocationId(Number(e.target.value))}
+                      sx={{ backgroundColor: "white" }}
+                    >
+                      {locations.map((loc) => (
+                        <MenuItem key={loc.id} value={loc.id}>
+                          {loc.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  ) : (
+                    locations.find((loc) => loc.id === section.location)?.name || "—"
+                  )}
                 </TableCell>
-                <TableCell>{section.building_no || "—"}</TableCell>
-                <TableCell>{section.street_no || "—"}</TableCell>
-                <TableCell>{section.zone_no || "—"}</TableCell>
-                <TableCell>{section.short_name || "—"}</TableCell>
-                <TableCell>{section.logo ? <img src={section.logo} alt="logo" width={40} /> : "—"}</TableCell>
+
+                {/* Building */}
+                <TableCell>
+                  {editingId === section.id ? (
+                    <TextField
+                      value={editingBuildingNo}
+                      size="small"
+                      onChange={(e) => setEditingBuildingNo(e.target.value)}
+                      sx={{ backgroundColor: "white" }}
+                    />
+                  ) : (
+                    section.building_no || "—"
+                  )}
+                </TableCell>
+
+                {/* Street */}
+                <TableCell>
+                  {editingId === section.id ? (
+                    <TextField
+                      value={editingStreetNo}
+                      size="small"
+                      onChange={(e) => setEditingStreetNo(e.target.value)}
+                      sx={{ backgroundColor: "white" }}
+                    />
+                  ) : (
+                    section.street_no || "—"
+                  )}
+                </TableCell>
+
+                {/* Zone */}
+                <TableCell>
+                  {editingId === section.id ? (
+                    <TextField
+                      value={editingZoneNo}
+                      size="small"
+                      onChange={(e) => setEditingZoneNo(e.target.value)}
+                      sx={{ backgroundColor: "white" }}
+                    />
+                  ) : (
+                    section.zone_no || "—"
+                  )}
+                </TableCell>
+
+                {/* Short Name */}
+                <TableCell>
+                  {editingId === section.id ? (
+                    <TextField
+                      value={editingShortName}
+                      size="small"
+                      onChange={(e) => setEditingShortName(e.target.value)}
+                      sx={{ backgroundColor: "white" }}
+                    />
+                  ) : (
+                    section.short_name || "—"
+                  )}
+                </TableCell>
+
+                {/* Logo */}
                 <TableCell>
                   {editingId === section.id ? (
                     <>
-                      <Button size="small" onClick={() => handleUpdate(section.id)}>Save</Button>
-                      <Button size="small" onClick={() => setEditingId(null)}>Cancel</Button>
+                      <Button variant="outlined" component="label" size="small">
+                        Upload Logo
+                        <input
+                          type="file"
+                          hidden
+                          accept="image/*"
+                          onChange={(e) => setEditingLogo(e.target.files?.[0] || null)}
+                        />
+                      </Button>
+                      {editingLogo && <Typography variant="caption">{editingLogo.name}</Typography>}
+                    </>
+                  ) : section.logo ? (
+                    <img src={section.logo} alt="logo" width={40} />
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+
+                {/* Actions */}
+                <TableCell>
+                  {editingId === section.id ? (
+                    <>
+                      <Button size="small" onClick={() => handleUpdate(section.id)}>
+                        Save
+                      </Button>
+                      <Button size="small" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </Button>
                     </>
                   ) : (
                     <>
-                      <Button size="small" onClick={() => {
-                        setEditingId(section.id);
-                        setEditingName(section.name);
-                        setEditingChannelId(section.channel.id);
-                        setEditingLocationId(section.location || "");
-                        setEditingBuildingNo(section.building_no || "");
-                        setEditingStreetNo(section.street_no || "");
-                        setEditingZoneNo(section.zone_no || "");
-                        setEditingShortName(section.short_name || "");
-                      }}>Edit</Button>
-                      <Button size="small" color="error" onClick={() => handleDelete(section.id)}>Delete</Button>
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setEditingId(section.id);
+                          setEditingName(section.name);
+                          setEditingChannelId(section.channel.id);
+                          setEditingLocationId(section.location || "");
+                          setEditingBuildingNo(section.building_no || "");
+                          setEditingStreetNo(section.street_no || "");
+                          setEditingZoneNo(section.zone_no || "");
+                          setEditingShortName(section.short_name || "");
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button size="small" color="error" onClick={() => handleDelete(section.id)}>
+                        Delete
+                      </Button>
                     </>
                   )}
                 </TableCell>

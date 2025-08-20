@@ -1,6 +1,6 @@
 from rest_framework import viewsets, filters, status
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework.decorators import api_view, action
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, AllowAny
+from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,6 +11,8 @@ import barcode
 from barcode.writer import ImageWriter
 from django.http import HttpResponse
 import openpyxl
+from django.db.models import Prefetch
+from sales.models import SectionProductPrice
 
 # ----------------------------
 # Pagination
@@ -27,15 +29,31 @@ class ProductPagination(PageNumberPagination):
 # ----------------------------
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all().order_by('-created_at')
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['item_name', 'brand', 'serial_number']
+    search_fields = [
+        'unique_id',
+        'item_name',
+        'brand',
+        'serial_number',
+        'variants',
+        'category__name',
+    ]
     ordering_fields = ['item_name', 'rate', 'created_at']
 
     pagination_class = ProductPagination
+
+    def get_queryset(self):
+        # Prefetch section_prices with related section to avoid N+1 queries
+        return Product.objects.all().order_by('-created_at').prefetch_related(
+            Prefetch(
+                'section_prices',
+                queryset=SectionProductPrice.objects.select_related('section'),
+                to_attr='prefetched_section_prices'
+            )
+        )
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -88,13 +106,12 @@ def scan_barcode(request):
         return Response({'found': False, 'product': None}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def generate_barcode(request, unique_id):
     try:
-        # Use CODE128 (widely supported)
         barcode_class = barcode.get_barcode_class('code128')
         barcode_img = barcode_class(unique_id, writer=ImageWriter())
 
-        # Generate image in-memory (PNG)
         buffer = io.BytesIO()
         barcode_img.write(buffer, options={'module_width': 0.3, 'module_height': 15, 'font_size': 10})
         buffer.seek(0)
@@ -102,7 +119,7 @@ def generate_barcode(request, unique_id):
         return HttpResponse(buffer.getvalue(), content_type='image/png')
     
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return HttpResponse(f"Error generating barcode: {str(e)}", status=500)
 
 @api_view(['GET'])
 def active_product_count(request):

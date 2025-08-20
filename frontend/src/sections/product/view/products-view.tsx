@@ -16,7 +16,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { Dialog, DialogTitle, DialogContent, DialogActions, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
 
 import { DashboardContent } from 'src/layouts/dashboard';
-import { getProducts, deleteProduct, getCategories, getLocations, downloadProductsExcel } from 'src/api/products';
+import { getProducts, deleteProduct, getCategories, getLocations, getProductByBarcode, downloadProductsExcel } from 'src/api/products';
 
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
@@ -220,8 +220,26 @@ export function ProductView() {
 
           {/* Barcode Scanner */}
           <BarcodeScanner
-            onProductFound={(product) => enqueueSnackbar(`Product found: ${product.item_name}`, { variant: 'info' })}
-            onNotFound={(barcode) => { enqueueSnackbar(`Product not found: ${barcode}`, { variant: 'warning' }); setScannedBarcode(barcode); setOpenNewProduct(true); }}
+            onProductFound={async (scannedProduct) => {
+              enqueueSnackbar(`Product found: ${scannedProduct.item_name}`, { variant: 'info' });
+
+              try {
+                // Fetch full product details using barcode
+                const fullProduct = await getProductByBarcode(scannedProduct.unique_id);
+
+                // Open edit form with the full product
+                setProductToEdit(fullProduct);
+                setEditProductDialogOpen(true);
+              } catch (error) {
+                enqueueSnackbar('Failed to load product details', { variant: 'error' });
+                console.error(error);
+              }
+            }}
+            onNotFound={(barcode) => {
+              enqueueSnackbar(`Product not found: ${barcode}`, { variant: 'warning' });
+              setScannedBarcode(barcode);
+              setOpenNewProduct(true);
+            }}
           />
 
           {/* Product Edit Dialog */}

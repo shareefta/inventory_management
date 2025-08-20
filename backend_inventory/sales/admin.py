@@ -13,10 +13,15 @@ class SalesSectionAdmin(admin.ModelAdmin):
     list_filter = ("channel", "location")
     search_fields = ("name", "location__name")
 
+class SectionProductPriceInline(admin.TabularInline):
+    model = SectionProductPrice
+    extra = 0
+    readonly_fields = ('auto_price', 'price')
+
 @admin.register(SectionProductPrice)
 class SectionProductPriceAdmin(admin.ModelAdmin):
-    list_display = ("id", "section", "product", "price")
-    list_filter = ("section__channel", "section")
+    list_display = ("id", "section", "product")
+    list_display = ('section', 'product')
     search_fields = ("product__item_name", "product__unique_id", "section__name")
 
 @admin.register(SaleItem)

@@ -68,7 +68,7 @@ export async function getProductByBarcode(barcode: string): Promise<ProductProps
     params: { barcode },
   });
 
-  const item = response.data;
+  const item = response.data.product;
 
   return {
     id: item.id,
