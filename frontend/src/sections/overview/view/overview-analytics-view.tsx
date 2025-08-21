@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 
-import { getProducts } from 'src/api/products';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { _posts, _tasks, _traffic, _timeline } from 'src/_mock';
+import { getProductStats, getPurchaseStats, PurchaseStats } from 'src/api/products';
 
 import { AnalyticsNews } from '../analytics-news';
 import { AnalyticsTasks } from '../analytics-tasks';
@@ -17,6 +17,7 @@ import { AnalyticsWidgetSummary } from '../analytics-widget-summary';
 import { AnalyticsTrafficBySite } from '../analytics-traffic-by-site';
 import { AnalyticsCurrentSubject } from '../analytics-current-subject';
 import { AnalyticsConversionRates } from '../analytics-conversion-rates';
+import { AnalyticsWidgetPurchases } from '../analytics-widget-purchases';
 
 // ----------------------------------------------------------------------
 
@@ -24,30 +25,14 @@ export function OverviewAnalyticsView() {
   const [activeProductCount, setActiveProductCount] = useState<number>(0);
   const [totalQuantity, setTotalQuantity] = useState<number>(0);
   const [totalCost, setTotalCost] = useState<number>(0);
+  const [purchaseStats, setPurchaseStats] = useState<PurchaseStats | null>(null);
 
   const fetchProductStats = async () => {
     try {
-      const products = await getProducts();
-
-      // Active products
-      const response = await getProducts();
-      const activeCount = response.data.filter((p) => p.active).length;
-      setActiveProductCount(activeCount);
-
-      // Total quantity across all locations
-      const quantitySum = response.data.reduce((acc, p) => {
-        const productTotalQty = p.locations.reduce((qAcc, loc) => qAcc + (loc.quantity || 0), 0);
-        return acc + productTotalQty;
-      }, 0);
-      setTotalQuantity(quantitySum);
-
-      // Total cost = sum of (rate * quantity at each location)
-      const costSum = response.data.reduce((acc, p) => {
-        const productCost = p.locations.reduce((cAcc, loc) => cAcc + (loc.quantity || 0) * (p.rate || 0), 0);
-        return acc + productCost;
-      }, 0);
-      setTotalCost(costSum);
-
+      const stats = await getProductStats();
+      setActiveProductCount(stats.active_count);
+      setTotalQuantity(stats.total_quantity);
+      setTotalCost(stats.total_cost);
     } catch (error) {
       console.error("Failed to fetch product stats:", error);
     }
@@ -56,6 +41,16 @@ export function OverviewAnalyticsView() {
   useEffect(() => {
     fetchProductStats();
   }, []);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const stats = await getPurchaseStats();
+      setPurchaseStats(stats);
+    };
+    fetchStats();
+  }, []);
+
+  if (!purchaseStats) return null;
 
   return (
     <DashboardContent maxWidth="xl">
@@ -78,20 +73,6 @@ export function OverviewAnalyticsView() {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <AnalyticsWidgetSummary
-            title="Today's Deliveries"
-            percent={-0.1}
-            total={50}
-            color="secondary"
-            icon={<img alt="Today's Deliveries" src="/assets/icons/glass/ic-glass-users.svg" />}
-            chart={{
-              categories: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-              series: [56, 47, 40, 62, 73, 30, 23],
-            }}
-          />
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <ProductSummaryCard
             title="Total Products"
             total_products={activeProductCount}
@@ -103,15 +84,29 @@ export function OverviewAnalyticsView() {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <AnalyticsWidgetPurchases
+            title="Today's Purchases"
+            todayTotal={purchaseStats.today?.total_amount || 0}
+            yearTotal={purchaseStats.financial_year?.total_amount || 0}
+            color="secondary"
+            icon={<img alt="Purchases" src="/assets/icons/glass/ic-glass-users.svg" />}
+            chart={{
+            categories: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+            series: purchaseStats.month_totals,
+          }}
+          />
+        </Grid>        
+
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <AnalyticsWidgetSummary
-            title="Monthly Purchases"
+            title="Sales"
             percent={3.6}
             total={234}
             color="error"
-            icon={<img alt="Monthly Purchases" src="/assets/icons/glass/ic-glass-message.svg" />}
+            icon={<img alt="Sales" src="/assets/icons/glass/ic-glass-message.svg" />}
             chart={{
-              categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-              series: [56, 30, 23, 54, 47, 40, 62, 73],
+              categories: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+              series: [56, 47, 40, 62, 73, 30, 23, 40, 62, 73, 30, 23],
             }}
           />
         </Grid>

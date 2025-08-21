@@ -1,4 +1,5 @@
 # sales/urls.py
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     SalesChannelViewSet,
@@ -6,6 +7,7 @@ from .views import (
     SectionProductPriceViewSet,
     SaleViewSet,
     SalesReturnViewSet,
+    sales_stats
 )
 
 router = DefaultRouter()
@@ -15,4 +17,7 @@ router.register(r"prices", SectionProductPriceViewSet, basename="sales-prices")
 router.register(r"sales", SaleViewSet, basename="sales")
 router.register(r"sales-returns", SalesReturnViewSet, basename="sales-returns")
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('', include(router.urls)),
+    path('sales-stats/', sales_stats, name='sales_stats'),
+]

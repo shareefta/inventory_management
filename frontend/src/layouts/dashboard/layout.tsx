@@ -9,8 +9,8 @@ import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
 
 import { _langs, _notifications } from 'src/_mock';
+import { getProductStats } from 'src/api/products';
 import { useAuthStore } from 'src/store/use-auth-store';
-import { getActiveProductCount } from 'src/api/products';
 
 import { Label } from 'src/components/label';
 
@@ -62,8 +62,8 @@ export function DashboardLayout({
 
   const fetchProductCount = async () => {
     try {
-      const activeCount = await getActiveProductCount();
-      console.log("Active product count:", activeCount);
+      const stats = await getProductStats();
+      console.log("Product stats API response:", stats);
 
       const updatedNav = navData.map((item) =>
         item.title === 'Product'
@@ -71,7 +71,7 @@ export function DashboardLayout({
               ...item,
               info: (
                 <Label color="error" variant="inverted">
-                  {activeCount}
+                  {stats.active_count}
                 </Label>
               ),
             }
@@ -79,7 +79,7 @@ export function DashboardLayout({
       );
 
       setNavItems(updatedNav);
-      setActiveProductCount(activeCount);
+      setActiveProductCount(stats.active_count);
     } catch (error) {
       console.error('Failed to fetch product count:', error);
     }

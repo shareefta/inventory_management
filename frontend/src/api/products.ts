@@ -19,10 +19,10 @@ function triggerProductUpdate() {
   window.dispatchEvent(new Event('product-update'));
 }
 
-export async function getActiveProductCount(): Promise<number> {
-  const response = await axios.get<{ count: number }>('https://razaworld.uk/api/products/active-count/', { headers: getAuthHeaders() });
-  console.log("Active product count API response:", response.data);
-  return response.data.count;
+export async function getProductStats(): Promise<{ active_count: number; total_quantity: number; total_cost: number }> {
+  const response = await axios.get('https://razaworld.uk/api/products/product-stats/', { headers: getAuthHeaders() });
+  console.log("Product stats API response:", response.data);
+  return response.data;
 }
 
 // ---- GET PAGINATED PRODUCTS ----
@@ -203,4 +203,46 @@ export async function downloadProductsExcel(search?: string, columns?: string[])
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+export interface PeriodStats {
+  count: number;
+  total_amount: number;
+  total_items: number;
+}
+
+
+export interface PurchaseStats {
+  purchases_total: number;
+  purchases_after_return: number;
+  purchases_today: number;
+  purchases_today_after_return: number;
+  purchases_month: number;
+  purchases_month_after_return: number;
+  purchases_fy: number;
+  purchases_fy_after_return: number;
+  purchase_return_total: number;
+  purchase_return_today: number;
+  purchase_return_month: number;
+  purchase_return_fy: number;
+  today?: PeriodStats;
+  current_month?: PeriodStats;
+  financial_year?: PeriodStats; 
+  month_totals: number[];
+}
+
+// ---- GET PURCHASE STATS ----
+export async function getPurchaseStats(): Promise<PurchaseStats> {
+  try {
+    const response = await axios.get(
+      'https://razaworld.uk/api/products/purchase-stats/',
+      { headers: getAuthHeaders() }
+    );
+
+    console.log('Purchase stats API response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch purchase stats:', error);
+    throw error;
+  }
 }

@@ -4,15 +4,18 @@ from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Product, Category, Location, Purchase
+from .models import Product, Category, Location, Purchase, ProductLocation, PurchaseItemLocation
 from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer, PurchaseDetailSerializer
 import io
 import barcode
 from barcode.writer import ImageWriter
 from django.http import HttpResponse
 import openpyxl
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Sum, F
 from sales.models import SectionProductPrice
+from django.utils.timezone import now
+from datetime import date
+import datetime
 
 # ----------------------------
 # Pagination
@@ -122,9 +125,19 @@ def generate_barcode(request, unique_id):
         return HttpResponse(f"Error generating barcode: {str(e)}", status=500)
 
 @api_view(['GET'])
-def active_product_count(request):
-    count = Product.objects.filter(active=True).count()
-    return Response({'count': count})
+def product_stats(request):
+    active_count = Product.objects.filter(active=True).count()
+
+    total_data = ProductLocation.objects.aggregate(
+        total_quantity=Sum('quantity'),
+        total_cost=Sum(F('quantity') * F('product__rate'))
+    )
+
+    return Response({
+        'active_count': active_count,
+        'total_quantity': total_data['total_quantity'] or 0,
+        'total_cost': total_data['total_cost'] or 0
+    })
 
 @api_view(['GET'])
 def export_products_excel(request):
@@ -190,3 +203,50 @@ def export_products_excel(request):
     response['Content-Disposition'] = 'attachment; filename=products.xlsx'
     wb.save(response)
     return response
+
+def get_financial_year_dates(today: date):
+    """Return start and end date of current financial year (Apr 1 - Mar 31)"""
+    if today.month >= 4:
+        fy_start = date(today.year, 4, 1)
+        fy_end = date(today.year + 1, 3, 31)
+    else:
+        fy_start = date(today.year - 1, 4, 1)
+        fy_end = date(today.year, 3, 31)
+    return fy_start, fy_end
+
+@api_view(['GET'])
+def purchase_stats(request):
+    today = now().date()
+    month_start = today.replace(day=1)
+    fy_start, fy_end = get_financial_year_dates(today)
+
+    # Helper function
+    def get_stats(queryset):
+        total_amount = queryset.aggregate(total_amount=Sum('total_amount'))['total_amount'] or 0
+        total_items = PurchaseItemLocation.objects.filter(
+            purchase_item__purchase__in=queryset
+        ).aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+        return {
+            'count': queryset.count(),
+            'total_amount': total_amount,
+            'total_items': total_items
+        }
+
+    # Month-wise totals for FY
+    month_totals = []
+    queryset_fy = Purchase.objects.filter(purchase_date__gte=fy_start, purchase_date__lte=fy_end)
+    for month in range(4, 13):  # April (4) to December (12)
+        month_queryset = queryset_fy.filter(purchase_date__month=month)
+        month_totals.append(get_stats(month_queryset)['total_amount'])
+    for month in range(1, 4):  # Jan (1) to Mar (3)
+        month_queryset = queryset_fy.filter(purchase_date__month=month)
+        month_totals.append(get_stats(month_queryset)['total_amount'])
+
+    purchases = {
+        'today': get_stats(Purchase.objects.filter(purchase_date=today)),
+        'current_month': get_stats(Purchase.objects.filter(purchase_date__gte=month_start, purchase_date__lte=today)),
+        'financial_year': get_stats(queryset_fy),
+        'month_totals': month_totals  # April to March
+    }
+
+    return Response(purchases)

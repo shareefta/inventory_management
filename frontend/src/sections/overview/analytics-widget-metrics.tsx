@@ -17,7 +17,7 @@ type Props = CardProps & {
   total_stock: number;
   stock_value: number;
   color?: PaletteColorKey;
-  icon?: React.ReactNode; // keep the icon prop for compatibility
+  icon?: React.ReactNode;
 };
 
 export function ProductSummaryCard({
@@ -27,7 +27,7 @@ export function ProductSummaryCard({
   total_stock,
   stock_value,
   color = 'primary',
-  icon, // accept icon but do not render
+  icon,
   ...other
 }: Props) {
   const theme = useTheme();
@@ -76,7 +76,7 @@ export function ProductSummaryCard({
           Stock Value:
         </Box>
         <Box sx={{ typography: 'h4', fontWeight: 700, color: 'primary.main' }}>
-          QR {stock_value.toLocaleString()}
+          {stock_value.toLocaleString()} <span>QR</span>
         </Box>
       </Box>
 

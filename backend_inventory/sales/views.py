@@ -1,6 +1,6 @@
 # sales/views.py
 from rest_framework import viewsets, permissions, status, parsers
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework import serializers
 from django.db import transaction
@@ -16,6 +16,8 @@ from .serializers import (
     SaleSerializer, SalesReturnSerializer
 )
 from products.models import Product
+from django.utils.timezone import now
+import datetime
 
 class IsStaffOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -250,3 +252,78 @@ class SalesReturnViewSet(viewsets.ModelViewSet):
 
         read_serializer = SalesReturnSerializer(sales_return)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+def get_financial_year_dates(today=None):
+    today = today or datetime.date.today()
+    year = today.year
+    if today.month >= 4:
+        start = datetime.date(year, 4, 1)
+        end = datetime.date(year + 1, 3, 31)
+    else:
+        start = datetime.date(year - 1, 4, 1)
+        end = datetime.date(year, 3, 31)
+    return start, end
+
+@api_view(['GET'])
+def sales_stats(request):
+    today = now().date()
+    month_start = today.replace(day=1)
+    fy_start = today.replace(month=4, day=1)
+    # Adjust FY start if today is before April
+    if today.month < 4:
+        fy_start = today.replace(year=today.year - 1, month=4, day=1)
+
+    # Aggregate total sales
+    sales_total = Sale.objects.aggregate(
+        total_sales=Sum('total_amount')
+    )['total_sales'] or 0
+
+    # Total sales for today
+    sales_today = Sale.objects.filter(sale_datetime__date=today).aggregate(
+        total=Sum('total_amount')
+    )['total'] or 0
+
+    # Total sales for current month
+    sales_month = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
+        total=Sum('total_amount')
+    )['total'] or 0
+
+    # Total sales for current financial year
+    sales_fy = Sale.objects.filter(sale_datetime__date__gte=fy_start).aggregate(
+        total=Sum('total_amount')
+    )['total'] or 0
+
+    # Aggregate total sales returns
+    sales_return_total = SalesReturn.objects.aggregate(
+        total_return=Sum('refund_amount')
+    )['total_return'] or 0
+
+    # Returns today
+    sales_return_today = SalesReturn.objects.filter(created_at__date=today).aggregate(
+        total=Sum('refund_amount')
+    )['total'] or 0
+
+    # Returns this month
+    sales_return_month = SalesReturn.objects.filter(created_at__date__gte=month_start).aggregate(
+        total=Sum('refund_amount')
+    )['total'] or 0
+
+    # Returns this FY
+    sales_return_fy = SalesReturn.objects.filter(created_at__date__gte=fy_start).aggregate(
+        total=Sum('refund_amount')
+    )['total'] or 0
+
+    return Response({
+        "sales_total": sales_total,
+        "sales_after_return": sales_total - sales_return_total,
+        "sales_today": sales_today,
+        "sales_today_after_return": sales_today - sales_return_today,
+        "sales_month": sales_month,
+        "sales_month_after_return": sales_month - sales_return_month,
+        "sales_fy": sales_fy,
+        "sales_fy_after_return": sales_fy - sales_return_fy,
+        "sales_return_total": sales_return_total,
+        "sales_return_today": sales_return_today,
+        "sales_return_month": sales_return_month,
+        "sales_return_fy": sales_return_fy
+    })
