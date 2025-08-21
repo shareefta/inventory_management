@@ -11,6 +11,7 @@ from PIL import Image
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from decimal import Decimal
 
 User = get_user_model()
 
@@ -68,8 +69,39 @@ class Product(models.Model):
         if not self.unique_id:
             self.unique_id = str(uuid.uuid4()).replace('-', '')[:13].upper()
         
+        is_new = self.pk is None
+        old_rate = None
+        if not is_new:
+            old_rate = Product.objects.filter(pk=self.pk).values_list('rate', flat=True).first()
+        
         self.full_clean()
         super().save(*args, **kwargs)
+
+        # Check if rate is changed or product is new
+        if is_new or (old_rate is not None and old_rate != self.rate):
+            self.update_all_sections_price()
+
+    def update_all_sections_price(self):
+        """
+        Update selling_price in all SectionProductPrice for this product:
+        - selling_price = rate * 1.2 → two-level rounding
+        - overwrite previous manual prices if needed
+        """
+        from sales.models import SectionProductPrice, SalesSection
+        from sales.models import round_to_last_digit_5
+
+        new_price = round_to_last_digit_5(self.rate * Decimal("1.2"))
+
+        all_sections = SalesSection.objects.all()
+        for section in all_sections:
+            SectionProductPrice.objects.update_or_create(
+                section=section,
+                product=self,
+                defaults={
+                    "selling_price": new_price,
+                    "is_manual": False,  # auto-calculated
+                }
+            )
 
     def __str__(self):
         return f"{self.item_name} ({self.unique_id})"

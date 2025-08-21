@@ -8,7 +8,7 @@ from django.db.models import F, Sum
 from decimal import Decimal
 from customers.models import WalletTransaction
 from products.models import ProductLocation
-from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem, SalesReturn, SalesReturnItem
+from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem, SalesReturn, SalesReturnItem, round_to_last_digit_5
 from .serializers import (
     SalesChannelSerializer,
     SalesSectionSerializer,
@@ -78,11 +78,14 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
                 if not product:
                     continue
 
+                # Do NOT round manual prices; save as-is
+                selling_price = Decimal(price) if price is not None else None
+
                 obj, was_created = SectionProductPrice.objects.update_or_create(
                     section_id=section_id,
                     product_id=product,
                     defaults={
-                        "selling_price": price,
+                        "selling_price": selling_price,
                         "is_manual": price is not None,
                     },
                 )
@@ -116,17 +119,17 @@ class SectionProductPriceViewSet(viewsets.ModelViewSet):
             return Response({
                 "product": int(product_id),
                 "section": int(section_id),
-                "price": str(spp.final_price),
+                "price": float(spp.final_price),
                 "is_manual": spp.is_manual,
             })
 
         # If no SectionProductPrice exists → fallback to auto
         if prod:
-            auto_price = round(prod.cost_price * Decimal("1.2"), 2)
+            auto_price = round_to_last_digit_5(prod.rate * Decimal("1.2"))
             return Response({
                 "product": int(product_id),
                 "section": int(section_id),
-                "price": str(auto_price),
+                "price": float(auto_price),
                 "is_manual": False,
             })
 

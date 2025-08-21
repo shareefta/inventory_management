@@ -41,6 +41,7 @@ export default function SectionPricesPage() {
   const [prices, setPrices] = useState<Record<string, string | null>>({});
   const [applyToAll, setApplyToAll] = useState(false);
   const [totalProducts, setTotalProducts] = useState(0);
+  const [search, setSearch] = useState('');
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
@@ -54,7 +55,7 @@ export default function SectionPricesPage() {
         const sectionsRes = await getSections();
         setSections(sectionsRes.data);
 
-        const productsRes = await getProducts(page, perPage);
+        const productsRes = await getProducts(page, perPage, search);
         setProducts(productsRes.data);
         setTotalProducts(productsRes.total);
       } catch (error) {
@@ -63,7 +64,7 @@ export default function SectionPricesPage() {
       }
     };
     fetchData();
-  }, [enqueueSnackbar, page, perPage]);
+  }, [enqueueSnackbar, page, perPage, search]);
 
   // Fetch section prices
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function SectionPricesPage() {
         const priceMap: Record<string, string | null> = {};
 
         res.forEach((item: SectionProductPrice) => {
-          priceMap[String(item.product)] = item.price ?? null; // Use backend `price` (final_price)
+          priceMap[String(item.product)] = item.price ?? null;
         });
 
         // Initialize missing products with null
@@ -109,7 +110,7 @@ export default function SectionPricesPage() {
 
     const items = pageProducts.map((p) => ({
       product: Number(p.id),
-      price: prices[p.id] ?? null, // Send `price` to backend
+      price: prices[p.id] ?? null,
     }));
 
     try {
@@ -123,11 +124,8 @@ export default function SectionPricesPage() {
       }
 
       // Auto-move to next page
-      if (page < totalPages) {
-        setPage(page + 1);
-      } else {
-        enqueueSnackbar('All pages are done!', { variant: 'info' });
-      }
+      if (page < totalPages) setPage(page + 1);
+      else enqueueSnackbar('All pages are done!', { variant: 'info' });
     } catch (error) {
       console.error(error);
       enqueueSnackbar('Failed to save page prices', { variant: 'error' });
@@ -135,14 +133,19 @@ export default function SectionPricesPage() {
   };
 
   const getPaginationButtons = () => {
-    if (totalPages <= maxButtons) return [...Array(totalPages)].map((_, i) => i + 1);
-    let start = Math.max(page - Math.floor(maxButtons / 2), 1);
-    let end = start + maxButtons - 1;
-    if (end > totalPages) {
-      end = totalPages;
-      start = end - maxButtons + 1;
+    const buttons: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) buttons.push(i);
+    } else {
+      let start = Math.max(page - 2, 1);
+      const end = Math.min(start + 4, totalPages);
+      if (end - start < 4) start = end - 4;
+
+      if (start > 1) buttons.push(1, '...');
+      for (let i = start; i <= end; i++) buttons.push(i);
+      if (end < totalPages) buttons.push('...', totalPages);
     }
-    return [...Array(end - start + 1)].map((_, i) => start + i);
+    return buttons;
   };
 
   return (
@@ -180,6 +183,17 @@ export default function SectionPricesPage() {
             boxShadow: 3,
           }}
         >
+          <TextField
+            size="small"
+            placeholder="Search by name or barcode"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ minWidth: 250, backgroundColor: 'white', borderRadius: 1 }}
+          />
+          <Button variant="contained" onClick={() => setPage(1)}>
+            Search
+          </Button>
+
           <FormControl size="small" sx={{ minWidth: 200, backgroundColor: 'white', borderRadius: 1 }}>
             <InputLabel>Section</InputLabel>
             <Select
@@ -288,9 +302,7 @@ export default function SectionPricesPage() {
                     <TextField
                       type="number"
                       value={displayPrice}
-                      onChange={(e) =>
-                        handlePriceChange(product.id, e.target.value ? e.target.value : null)
-                      }
+                      onChange={(e) => handlePriceChange(product.id, e.target.value ? e.target.value : null)}
                       size="small"
                       sx={{
                         backgroundColor: '#fff',
@@ -314,16 +326,22 @@ export default function SectionPricesPage() {
           Prev
         </Button>
 
-        {getPaginationButtons().map((num) => (
-          <Button
-            key={num}
-            variant={num === page ? 'contained' : 'outlined'}
-            size="small"
-            onClick={() => setPage(num)}
-          >
-            {num}
-          </Button>
-        ))}
+        {getPaginationButtons().map((num, idx) =>
+          typeof num === 'number' ? (
+            <Button
+              key={idx}
+              variant={num === page ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setPage(num)}
+            >
+              {num}
+            </Button>
+          ) : (
+            <Typography key={idx} sx={{ px: 1, display: 'flex', alignItems: 'center' }}>
+              {num}
+            </Typography>
+          ),
+        )}
 
         <Button variant="outlined" size="small" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
           Next

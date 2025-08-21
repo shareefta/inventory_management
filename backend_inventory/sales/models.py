@@ -3,7 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import models, transaction
 from django.utils import timezone
 from django.conf import settings
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 
 # Use string app labels to avoid circular imports; they match your current setup
 # (Category, Location, Product live in "products")
@@ -50,13 +50,35 @@ class SalesSection(models.Model):
     def __str__(self):
         return f"{self.channel.name} - {self.name}"
 
+def round_to_last_digit_5(value: Decimal) -> Decimal:
+    """
+    Rounds UP to nearest integer and ensures last digit is always 5.
+    Examples:
+      51.2 -> 55
+      56.9 -> 65
+      62.0 -> 65
+      70.0 -> 75
+      85.0 -> 85
+      99.9 -> 105
+    """
+    # round UP to integer first
+    value = value.to_integral_value(rounding=ROUND_CEILING)
+    value = int(value)
+
+    remainder = value % 10
+    if remainder == 5:
+        return Decimal(value)
+    elif remainder < 5:
+        return Decimal(value - remainder + 5)
+    else:
+        return Decimal(value - remainder + 15)
+
 class SectionProductPrice(models.Model):
     section = models.ForeignKey(SalesSection, on_delete=models.CASCADE, related_name="prices")
     product = models.ForeignKey("products.Product", on_delete=models.CASCADE, related_name="section_prices")
 
-    # optional manual override
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    is_manual = models.BooleanField(default=False)
+    is_manual = models.BooleanField(default=False)  # True if user edited
 
     class Meta:
         unique_together = (("section", "product"),)
@@ -68,12 +90,23 @@ class SectionProductPrice(models.Model):
     @property
     def final_price(self):
         """
-        Returns either manual selling_price or cost+20% if not manual.
+        Returns the actual selling price:
+        - Manual → user price
+        - Auto → product rate * 1.2 → rounded
         """
         if self.is_manual and self.selling_price is not None:
-            return self.selling_price
-        # fallback → use product.cost + 20%
-        return round(self.product.cost_price * Decimal("1.2"), 2)
+            return Decimal(self.selling_price)
+        else:
+            return round_to_last_digit_5(self.product.rate * Decimal("1.2"))
+
+    def save(self, *args, **kwargs):
+        """
+        - Auto price: always calculated based on current product rate if not manual
+        """
+        if self.selling_price is not None and not self.is_manual:
+            self.selling_price = round_to_last_digit_5(self.product.rate * Decimal("1.2"))
+
+        super().save(*args, **kwargs)
 
 class Sale(models.Model):
     PAYMENT_MODES = [

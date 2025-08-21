@@ -16,8 +16,8 @@ import {
   TableCell, TableBody, Fab, IconButton
 } from "@mui/material";
 
-import { getProducts } from "src/api/products";
 import { useAuthStore } from "src/store/use-auth-store";
+import { getProducts, getProductByBarcode } from "src/api/products";
 import { getSections, Sale, createSale, SalesSection, getSectionPrices } from "src/api/sales";
 
 import PosReceipt from "src/sections/sales/sales-invoice-print";
@@ -58,12 +58,57 @@ export default function SalesPage() {
   const [selectedSection, setSelectedSection] = useState<SalesSection | null>(null);
   const [sectionPrices, setSectionPrices] = useState<{ product: number; price: string }[]>([]);
   const [products, setProducts] = useState<ProductProps[]>([]);
+  const [cartItems, setCartItems] = useState<any[]>([]);
 
   const [paymentMode, setPaymentMode] = useState<"Cash" | "Credit" | "Online">("Cash");
 
+  // State for server-side search
+  const [selectedValue, setSelectedValue] = useState<ProductProps | string | null>(null);
   const [inputValue, setInputValue] = useState("");
-  const [selectedValue, setSelectedValue] = useState<any | null>(null);
+  const [autocompleteOptions, setAutocompleteOptions] = useState<ProductProps[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Debounced server-side search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (!inputValue.trim()) {
+        setAutocompleteOptions([]);
+        return;
+      }
+
+      setLoadingProducts(true);
+      getProducts(1, 25, inputValue)
+        .then(res => setAutocompleteOptions(res.data))
+        .finally(() => setLoadingProducts(false));
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(handler);
+  }, [inputValue]);
+
+  useEffect(() => {
+    if (!selectedSection || !activeSale) return;
+
+    setSalesInstances(prev =>
+      prev.map(sale => {
+        if (sale.id !== activeSaleId) return sale;
+
+        const updatedItems = sale.cartItems.map(item => {
+          // Find price for this product in the newly selected section
+          const sectionPriceObj = sectionPrices.find(sp => sp.product === Number(item.productId));
+          const newPrice = sectionPriceObj ? Number(sectionPriceObj.price) : item.price;
+
+          return {
+            ...item,
+            price: newPrice,
+            total: newPrice * item.quantity,
+          };
+        });
+
+        return { ...sale, cartItems: updatedItems };
+      })
+    );
+  }, [selectedSection, sectionPrices]);
 
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
@@ -79,8 +124,7 @@ export default function SalesPage() {
     { id: String(Date.now()), cartItems: [], discount: 0, customerName: "", customerMobile: "", invoiceNumber: "" },
   ]);
   
-  const [activeSaleId, setActiveSaleId] = useState<string | null>(salesInstances[0]?.id ?? null);
-  
+  const [activeSaleId, setActiveSaleId] = useState<string | null>(salesInstances[0]?.id ?? null);  
 
   const showSnackbar = (message: string, severity: "success" | "error" | "info" | "warning" = "info") => {
     setSnackbarMessage(message);
@@ -119,7 +163,7 @@ export default function SalesPage() {
 
   // Add product to cart
   const addProductToCart = (product: ProductProps) => {
-    if (!selectedSection || !activeSale) {
+    if (!selectedSection) {
       showSnackbar("Select a sales section first", "warning");
       return;
     }
@@ -314,56 +358,68 @@ export default function SalesPage() {
             />
           </FormControl>
 
-          <Autocomplete
-            freeSolo
-            size="small"
-            options={products}
-            value={selectedValue}
-            onChange={(_, value) => {
-              if (value && typeof value !== "string" && selectedSection && activeSale) {
-                addProductToCart(value);
-                setInputValue("");
-                setSelectedValue(null);
-                setTimeout(() => inputRef.current?.focus(), 0);
+          <FormControl size="small" sx={{ flex: 1, minWidth: 250 }}>
+            <Autocomplete
+              freeSolo
+              size="small"
+              options={autocompleteOptions}
+              loading={loadingProducts}
+              value={selectedValue}
+              inputValue={inputValue}
+              onInputChange={(_, newValue) => setInputValue(newValue)}
+              onChange={(_, value) => {
+                if (!value || !activeSale) return;
+
+                // Only handle when user *selects* from dropdown, not when typing barcode
+                if (typeof value !== "string") {
+                  addProductToCart(value);
+                  setInputValue("");
+                  setSelectedValue(null);
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }
+              }}
+              getOptionLabel={(option) =>
+                typeof option === "string"
+                  ? option
+                  : `${option.itemName} (${option.uniqueId || "No Barcode"})`
               }
-            }}
-            inputValue={inputValue}
-            onInputChange={(_, newValue) => setInputValue(newValue)}
-            getOptionLabel={(option) => typeof option === "string" ? option : `${option.itemName} (${option.uniqueId || "No Barcode"})`}
-            filterOptions={(options, params) => {
-              const searchText = params.inputValue.toLowerCase();
-              return options.filter(
-                (p) =>
-                  p.itemName.toLowerCase().includes(searchText) ||
-                  (p.uniqueId && p.uniqueId.toLowerCase().includes(searchText))
-              );
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                inputRef={inputRef}
-                label="Scan / Type Barcode or Product Name"
-                size="small"
-                sx={{ flex: 1, minWidth: 250 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    const val = (e.target as HTMLInputElement).value.trim();
-                    if (!val || !selectedSection || !activeSale) return;
-                    const prod = products.find(
-                      (p) =>
-                        p.uniqueId?.toLowerCase() === val.toLowerCase() ||
-                        p.itemName.toLowerCase() === val.toLowerCase()
-                    );
-                    if (prod) addProductToCart(prod);
-                    setInputValue("");
-                    setSelectedValue(null);
-                    setTimeout(() => inputRef.current?.focus(), 0);
-                  }
-                }}
-              />
-            )}
-          />
+              filterOptions={(options) => options}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  inputRef={inputRef}
+                  label="Scan / Type Barcode or Product Name"
+                  size="small"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = (e.target as HTMLInputElement).value.trim();
+                      if (!val || !activeSale) return;
+
+                      if (!selectedSection) {
+                        showSnackbar("Select a sales section first", "warning");
+                        return;
+                      }
+
+                      // Handle barcode entry (manual typing or scanner)
+                      getProductByBarcode(val)
+                        .then(product => {
+                          if (product) addProductToCart(product);
+                          else {
+                            getProducts(1, 25, val).then(res => {
+                              if (res.data.length) addProductToCart(res.data[0]);
+                            });
+                          }
+                        });
+
+                      setInputValue("");
+                      setSelectedValue(null);
+                    }
+                  }}
+                />
+              )}
+            />
+          </FormControl>
         </Box>
 
         {/* Sales Tabs */}

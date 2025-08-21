@@ -54,7 +54,7 @@ class SectionProductPriceSerializer(serializers.ModelSerializer):
         fields = ["id", "section", "product", "selling_price", "is_manual", "price"]
 
     def get_price(self, obj):
-        return str(obj.final_price)
+        return float(obj.final_price)
 
 # --- Sale write items (from POS/cart) ---
 class SaleItemWriteSerializer(serializers.Serializer):
