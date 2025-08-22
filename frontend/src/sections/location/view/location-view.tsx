@@ -98,7 +98,7 @@ export function LocationView() {
   // Updated headLabel with disableSorting flags for non-sortable columns
   const headLabel = [
     { id: 'serial', label: '#', disableSorting: true },
-    { id: 'name', label: 'Location Name' },
+    { id: 'name', label: 'Store Name' },
     { id: '', disableSorting: true },
   ];
 
@@ -117,7 +117,7 @@ export function LocationView() {
         <Grid size={{ sm: 9 }}>
           <Box sx={{ mb: 5, display: 'flex', alignItems: 'center' }}>
             <Typography variant="h4" sx={{ flexGrow: 1 }}>
-              Locations
+              Stores
             </Typography>            
             <Button
               variant="contained"
@@ -125,7 +125,7 @@ export function LocationView() {
               startIcon={<Iconify icon="mingcute:add-line" />}
               onClick={() => setOpenNewLocation(true)}
             >
-              New Location
+              New Store
             </Button>
           </Box>
 

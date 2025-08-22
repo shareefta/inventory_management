@@ -19,12 +19,12 @@ export const StaffNavData = [
     icon: icon('ic-analytics'),
   },
   {
-    title: 'Product',
+    title: 'Products',
     path: '/staff/products',
     icon: icon('ic-cart'),
   },
   {
-    title: 'Purchase',
+    title: 'Purchases',
     path: '/staff/purchase',
     icon: icon('ic-cart'),
   },

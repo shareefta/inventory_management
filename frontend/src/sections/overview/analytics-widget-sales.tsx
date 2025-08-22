@@ -18,8 +18,8 @@ import { Chart, useChart } from 'src/components/chart';
 
 type Props = CardProps & {
   title: string;
-  todayTotal: number;
-  yearTotal: number;
+  todaySales: number;
+  yearSales: number;
   color?: PaletteColorKey;
   icon: React.ReactNode;
   chart: {
@@ -29,12 +29,12 @@ type Props = CardProps & {
   };
 };
 
-export function AnalyticsWidgetPurchases({
+export function AnalyticsWidgetSales({
   sx,
   icon,
   title,
-  todayTotal,
-  yearTotal,
+  todaySales,
+  yearSales,
   chart,
   color = 'primary',
   ...other
@@ -76,7 +76,7 @@ export function AnalyticsWidgetPurchases({
       }}
     >
       <Box component="span" sx={{ typography: 'subtitle2' }}>
-        Today: {todayTotal}
+        Today: {todaySales}
       </Box>
     </Box>
   );
@@ -111,7 +111,7 @@ export function AnalyticsWidgetPurchases({
         <Box sx={{ flexGrow: 1, minWidth: 112 }}>
           <Box sx={{ mb: 1, typography: 'subtitle2' }}>{title}</Box>
 
-          <Box sx={{ typography: 'h4' }}>{yearTotal} QR</Box>
+          <Box sx={{ typography: 'h4' }}>{yearSales} QR</Box>
         </Box>
 
         <Chart

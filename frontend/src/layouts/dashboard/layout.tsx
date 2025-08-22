@@ -66,7 +66,7 @@ export function DashboardLayout({
       console.log("Product stats API response:", stats);
 
       const updatedNav = navData.map((item) =>
-        item.title === 'Product'
+        item.title === 'Products'
           ? {
               ...item,
               info: (

@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { getAuthHeaders } from 'src/api/products';
+
 // Interfaces
 export interface SalesChannel {
   id: number;
@@ -157,6 +159,8 @@ export const bulkSetSectionPrices = (
   api.post("prices/bulk-set/", { sections, items });
 
 // --- Sales ---
+// in sales.ts
+export const getSale = (id: number) => api.get<Sale>(`sales/${id}/`).then(res => res.data);
 export const getSales = () => api.get<Sale[]>("sales/");
 export const createSale = (sale: Partial<Sale>) => api.post("sales/", sale);
 export const updateSale = (id: number, sale: Partial<Sale>) => api.put(`sales/${id}/`, sale);
@@ -192,3 +196,48 @@ export const updateSalesReturn = (id: number, data: Partial<SalesReturn>) =>
 
 // Delete a sales return (admin only)
 export const deleteSalesReturn = (id: number) => api.delete(`sales-returns/${id}/`);
+
+export interface PeriodStats {
+  total_amount: number;
+}
+
+export interface SalesStats {
+  sales_total: number;
+  sales_after_return: number;
+  sales_today: number;
+  sales_today_after_return: number;
+  sales_month: number;
+  sales_month_after_return: number;
+  sales_fy: number;
+  sales_fy_after_return: number;
+  sales_return_total: number;
+  sales_return_today: number;
+  sales_return_month: number;
+  sales_return_fy: number;
+  today?: PeriodStats;
+  current_month?: PeriodStats;
+  financial_year?: PeriodStats;
+  month_totals: number[];
+}
+
+// ---- GET SALES STATS ----
+export async function getSalesStats(): Promise<SalesStats> {
+  try {
+    const response = await axios.get(
+      'https://razaworld.uk/api/sales/sales-stats/',
+      { headers: getAuthHeaders() }
+    );
+
+    const data = response.data;
+
+    return {
+      ...data,
+      today: { total_amount: data.sales_today },
+      current_month: { total_amount: data.sales_month },
+      financial_year: { total_amount: data.sales_fy },
+    };
+  } catch (error) {
+    console.error('Failed to fetch sales stats:', error);
+    throw error;
+  }
+}

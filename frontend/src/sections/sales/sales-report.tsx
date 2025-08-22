@@ -33,7 +33,7 @@ import {
   Button as MuiButton,
 } from "@mui/material";
 
-import { getSales, Sale, deleteSale, getSections, SalesSection } from "src/api/sales";
+import { getSales, getSale, Sale, deleteSale, getSections, SalesSection } from "src/api/sales";
 
 const paymentModes = ["Cash", "Credit", "Online"] as const;
 
@@ -53,6 +53,9 @@ const SalesReportPage = () => {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteSaleId, setDeleteSaleId] = useState<number | null>(null);
+
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   const [filterInvoiceMobile, setFilterInvoiceMobile] = useState("");
 
@@ -120,6 +123,21 @@ const SalesReportPage = () => {
       alert("Failed to delete sale");
       console.error(error);
     }
+  };
+
+  const handleOpenInvoiceDialog = async (id: number) => {
+    try {
+      const saleDetails = await getSale(id); // fetch full details
+      setSelectedSale(saleDetails);
+      setInvoiceDialogOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch sale details:", err);
+    }
+  };
+
+  const handleCloseInvoiceDialog = () => {
+    setSelectedSale(null);
+    setInvoiceDialogOpen(false);
   };
 
   // --- Totals (Dependent only on Section + Payment Mode filters) ---
@@ -336,7 +354,11 @@ const SalesReportPage = () => {
                   <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
                     {sale.sale_datetime ? new Date(sale.sale_datetime).toLocaleString() : "-"}
                   </TableCell>
-                  <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
+                  <TableCell
+                    align="center"
+                    sx={{ border: "1px solid #ddd", cursor: "pointer", color: "blue" }}
+                    onClick={() => handleOpenInvoiceDialog(sale.id)}
+                  >
                     {sale.invoice_number}
                   </TableCell>                  
                   <TableCell align="center" sx={{ border: "1px solid #ddd" }}>
@@ -418,6 +440,60 @@ const SalesReportPage = () => {
         <DialogActions>
           <MuiButton onClick={() => setDeleteDialogOpen(false)}>Cancel</MuiButton>
           <MuiButton color="error" variant="contained" onClick={handleConfirmDelete}>Delete</MuiButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={invoiceDialogOpen} onClose={handleCloseInvoiceDialog} maxWidth="md" fullWidth>
+        <DialogTitle>Invoice #{selectedSale?.invoice_number}</DialogTitle>
+
+        <DialogContent dividers>
+          {/* Customer & sale info */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle1">Customer: {selectedSale?.customer_name}</Typography>
+            <Typography variant="subtitle2">Date: {selectedSale?.sale_datetime}</Typography>
+          </Box>
+
+          {/* Items table */}
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Product</TableCell>
+                <TableCell align="center">Qty</TableCell>
+                <TableCell align="center">Price</TableCell>
+                <TableCell align="center">Total</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {selectedSale?.items?.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.product_name}</TableCell>
+                  <TableCell align="center">{item.quantity}</TableCell>
+                  <TableCell align="center">{item.price}</TableCell>
+                  <TableCell align="center">{item.total}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {/* Totals */}
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2">Discount: {selectedSale?.discount}</Typography>
+            <Typography variant="h6">Grand Total: {selectedSale?.total_amount}</Typography>
+          </Box>
+        </DialogContent>
+
+        <DialogActions>
+          {/* <MuiButton
+            variant="contained"
+            color="primary"
+            onClick={() => window.open(`/sales-invoice-print/${selectedSale?.id}`, "_blank")}
+          >
+            Print Invoice
+          </MuiButton> */}
+
+          <MuiButton onClick={handleCloseInvoiceDialog} color="secondary">
+            Close
+          </MuiButton>
         </DialogActions>
       </Dialog>
     </Box>

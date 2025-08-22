@@ -42,7 +42,7 @@ export function PurchaseTableToolbar({
           fullWidth
           value={filterName}
           onChange={onFilterName}
-          placeholder="Search product..."
+          placeholder="Search Purchase..."
           startAdornment={
             <InputAdornment position="start">
               <Iconify icon="eva:search-fill" width={20} sx={{ color: 'text.disabled' }} />

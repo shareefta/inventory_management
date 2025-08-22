@@ -19,12 +19,12 @@ export const navData: NavItem[] = [
     icon: icon('ic-analytics'),
   },
   {
-    title: 'Product',
+    title: 'Products',
     path: '/products',
     icon: icon('ic-product'),
   },
   {
-    title: 'Purchase',
+    title: 'Purchases',
     path: '/purchase',
     icon: icon('ic-cart'),
   },
@@ -34,12 +34,12 @@ export const navData: NavItem[] = [
     icon: icon('ic-sales'),
   },
   {
-    title: 'Category',
+    title: 'Categories',
     path: '/category',
     icon: icon('ic-category'),
   },
   {
-    title: 'Location',
+    title: 'Stores',
     path: '/location',
     icon: icon('ic-location'),
   },  

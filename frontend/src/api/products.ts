@@ -5,7 +5,7 @@ import axios from 'axios';
 const BASE_URL = 'https://razaworld.uk/api/products/products/';
 const BARCODE_URL = 'https://razaworld.uk/api/products/scan/';
 
-function getAuthHeaders(isFormData = false) {
+export function getAuthHeaders(isFormData = false) {
   const token = localStorage.getItem('token');
   if (!token) throw new Error('No auth token');
 

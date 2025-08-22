@@ -202,6 +202,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
                   <Grid size={{ sm:10, md: 4 }} sx={{ minWidth: 150 }}>
                     <Autocomplete
                       options={products}
+                      loading={loading}
                       // Dropdown label (name + barcode + serial)
                       getOptionLabel={(option) => {
                         let label = option.itemName;
@@ -227,9 +228,20 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
                           inputRef={(el) => {
                             productRefs.current[index] = el;
                           }}
+                          onChange={async (e) => {
+                            const search = e.target.value;
+                            if (search.length >= 2) {  // only search after 2+ chars
+                              setLoading(true);
+                              try {
+                                const res = await getProducts(1, 25, search);
+                                setProducts(res.data);
+                              } finally {
+                                setLoading(false);
+                              }
+                            }
+                          }}
                         />
                       )}
-
                       // Value handling
                       value={products.find((p) => p.id === item.product) || null}
                       onChange={(_, newValue) =>

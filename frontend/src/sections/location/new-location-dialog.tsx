@@ -67,10 +67,10 @@ export default function NewLocationDialog({ open, onClose, onSuccess }: NewLocat
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add New Location</DialogTitle>
+      <DialogTitle>Add New Store</DialogTitle>
       <DialogContent dividers>
         <TextField
-          label="Location Name"
+          label="Store Name"
           name="name"
           value={form.name}
           onChange={handleChange}

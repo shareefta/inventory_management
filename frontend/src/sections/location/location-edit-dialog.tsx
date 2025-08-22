@@ -59,9 +59,9 @@ export default function LocationEditDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>Edit Location</DialogTitle>
+      <DialogTitle>Edit Store</DialogTitle>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField label="Item Name" value={formData.name} onChange={(e) => handleFieldChange('name', e.target.value)} fullWidth />
+        <TextField label="Store Name" value={formData.name} onChange={(e) => handleFieldChange('name', e.target.value)} fullWidth />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} variant="outlined">Cancel</Button>

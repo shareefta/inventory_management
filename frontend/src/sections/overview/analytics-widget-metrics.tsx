@@ -50,13 +50,13 @@ export function ProductSummaryCard({
     >
       {/* SVG at top-left */}
       <SvgColor
-        src="/assets/icons/glass/ic-glass-buy.svg"
+        src="/assets/icons/glass/stock.png"
         sx={{
           top: 20,
           left: 0,
           width: 100,
           height: 50,
-          opacity: 0.24,
+          opacity: 0.50,
           position: 'absolute',
           color: `${color}.main`,
         }}
