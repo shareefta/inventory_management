@@ -12,13 +12,15 @@ export default function SettingsMenuPage() {
   const menus = [
     { title: 'Sales Channels', path: 'channels', gradient: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)' },
     { title: 'Sales Sections', path: 'sections', gradient: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)' },
-    { title: 'Set Section Prices', path: 'section-price', gradient: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' }, // new card
+    { title: 'Selling Prices', path: 'section-price', gradient: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' },
+    { title: 'Categories', path: 'category', gradient: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)' },
+    { title: 'Stores', path: 'location', gradient: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)' },
   ];
 
   return (
     <Grid container spacing={3}>
       {menus.map((menu) => (
-        <Grid size={{ xs:12, sm:6, md:2.5 }} key={menu.title}>
+        <Grid size={{ xs:12, sm:6, md:2 }} key={menu.title}>
           <Card
             sx={{
               borderRadius: 3,

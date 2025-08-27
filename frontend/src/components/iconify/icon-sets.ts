@@ -101,4 +101,13 @@ export default {
   'solar:download-bold': {
     body: '<path fill="currentColor" d="M12 16l4-4h-3V4h-2v8H8l4 4zm-8 4h16v-2H4v2z"/>'
   },
+  'custom:folder-icon': {
+    body: '<path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>',
+  },
+  'custom:outline-icon': {
+    body: '<path fill="currentColor" d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5A3.5 3.5 0 0 1 15.5 12A3.5 3.5 0 0 1 12 15.5m7.43-2.06l1.77 1.37c..."/></path>',
+  },
+  'custom:chevron-right': {
+    body: '<path fill="currentColor" d="M10 17l5-5-5-5v10z"/>',
+  },
 };

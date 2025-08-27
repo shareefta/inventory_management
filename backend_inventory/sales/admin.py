@@ -1,6 +1,6 @@
 # sales/admin.py
 from django.contrib import admin
-from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem
+from .models import SalesChannel, SalesSection, SectionProductPrice, Sale, SaleItem, SalesReturn, SalesReturnItem
 
 @admin.register(SalesChannel)
 class SalesChannelAdmin(admin.ModelAdmin):
@@ -43,3 +43,11 @@ class SaleAdmin(admin.ModelAdmin):
     list_filter = ("channel", "section", "payment_mode", "sale_datetime")
     search_fields = ("customer_name", "customer_mobile")
     inlines = [SaleItemInline]
+
+@admin.register(SalesReturn)
+class SalesReturnAdmin(admin.ModelAdmin):
+    list_display = ("id", "refund_amount", "sale", "created_by")
+
+@admin.register(SalesReturnItem)
+class SalesReturnItemAdmin(admin.ModelAdmin):
+    list_display = ("id", "sales_return", "sale_item", "product", "quantity", "price", "total")

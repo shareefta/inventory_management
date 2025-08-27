@@ -1,9 +1,11 @@
 import type { CategoryProps } from 'src/sections/category/category-table-row';
 
 import { useSnackbar } from 'notistack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from 'react';
 
 import Box from '@mui/material/Box';
+import Link from '@mui/material/Link';
 import Card from '@mui/material/Card';
 import Grid from '@mui/material/Grid';
 import Table from '@mui/material/Table';
@@ -12,6 +14,7 @@ import Skeleton from '@mui/material/Skeleton';
 import TableBody from '@mui/material/TableBody';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
+import Breadcrumbs from '@mui/material/Breadcrumbs';
 import TableContainer from '@mui/material/TableContainer';
 import TablePagination from '@mui/material/TablePagination';
 
@@ -31,6 +34,7 @@ import { CategoryTableToolbar } from 'src/sections/category/category-table-toolb
 import { applyFilter, emptyRows, getComparator } from 'src/sections/category/utils';
 
 export function CategoryView() {
+  const navigate = useNavigate();
   const table = useTable();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -112,17 +116,64 @@ export function CategoryView() {
   const notFound = !dataFiltered.length && !!filterName;
 
   return (
-    <DashboardContent maxWidth="xl">
-      <Grid container spacing={3}>
-        <Grid size={{ sm: 9 }}>
-          <Box sx={{ mb: 5, display: 'flex', alignItems: 'center' }}>
-            <Typography variant="h4" sx={{ flexGrow: 1 }}>
-              Categories
-            </Typography>            
+    <DashboardContent maxWidth="xl">      
+      <Grid container spacing={3}>        
+        <Grid size={{ sm: 6 }}>
+          <Box
+            sx={{
+              mb: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
+            <Breadcrumbs
+              separator={<Iconify icon="custom:chevron-right" width={20} />}
+              sx={{
+                flexGrow: 1,
+                color: 'text.secondary',
+                minWidth: 0,
+                '& .MuiTypography-root': {
+                  fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' },
+                },
+                '& svg': {
+                  width: { xs: 16, sm: 20, md: 20 },
+                  height: { xs: 16, sm: 20, md: 20 },
+                },
+              }}
+            >
+              {/* Parent link */}
+              <Link
+                component="button"
+                onClick={() => navigate("/settings")}
+                sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}
+              >
+                <Iconify icon="custom:outline-icon" sx={{ mr: 0.5 }} />
+                <Typography variant="body2" noWrap>
+                  Settings
+                </Typography>
+              </Link>
+
+              {/* Current page */}
+              <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                <Iconify icon="custom:folder-icon" sx={{ mr: 0.5 }} />
+                <Typography variant="body2" noWrap>
+                  Categories
+                </Typography>
+              </Box>
+            </Breadcrumbs>
+
+            {/* Action button */}
             <Button
               variant="contained"
               color="primary"
               startIcon={<Iconify icon="mingcute:add-line" />}
+              sx={{
+                mt: { xs: 1, sm: 0 },
+                fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' },
+              }}
               onClick={() => setOpenNewCategory(true)}
             >
               New Category

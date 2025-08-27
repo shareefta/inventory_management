@@ -12,12 +12,37 @@ from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from decimal import Decimal
+import random, time
 
 User = get_user_model()
 
+def generate_barcode():
+    """
+    Generate a unique 13-digit numeric barcode (EAN-13), optimized to avoid collisions.
+    Uses microseconds + random digit(s) for uniqueness.
+    """
+    from .models import Product
+
+    while True:
+        # Timestamp with microseconds (14 digits) → take last 12 for payload
+        timestamp_part = str(int(time.time() * 1000000))[-12:]
+        random_part = str(random.randint(0, 9))  # 1 random digit
+        base_digits = (timestamp_part + random_part)[:12]
+
+        # Calculate EAN-13 check digit
+        digits = [int(d) for d in base_digits]
+        s = sum(d if i % 2 == 0 else d * 3 for i, d in enumerate(digits))
+        check_digit = (10 - (s % 10)) % 10
+
+        barcode = base_digits + str(check_digit)  # 13-digit numeric
+
+        # Check uniqueness just in case
+        if not Product.objects.filter(unique_id=barcode).exists():
+            return barcode
+
 barcode_validator = RegexValidator(
-    regex=r'^[A-Z0-9]{8,30}$',
-    message='Barcode must be 8–30 characters, uppercase letters and digits only.'
+    regex=r'^[A-Za-z0-9\-]{8,30}$',
+    message='Barcode must be 8–30 characters, letters, digits, and hyphens only.'
 )
 
 class Category(models.Model):
@@ -66,9 +91,9 @@ class Product(models.Model):
         return sum(loc.quantity for loc in self.product_locations.all())
         
     def save(self, *args, **kwargs):
-        if not self.unique_id:
-            self.unique_id = str(uuid.uuid4()).replace('-', '')[:13].upper()
-        
+        if not self.unique_id or not self.unique_id.isdigit():
+            self.unique_id = generate_barcode()
+
         is_new = self.pk is None
         old_rate = None
         if not is_new:

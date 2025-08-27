@@ -76,8 +76,6 @@ export const routesSection: RouteObject[] = [
       { index: true, element: <DashboardPage /> },
       { path: 'user', element: <UserPage /> },
       { path: 'products', element: <ProductsPage /> },
-      { path: 'category', element: <CategoryPage /> },
-      { path: 'location', element: <LocationPage /> },
       { path: 'purchase', element: <PurchasePage /> },
       { path: 'new-sales-return', element: <NewSalesReturnPage /> },
       {
@@ -88,6 +86,8 @@ export const routesSection: RouteObject[] = [
           { path: 'channels', element: <SalesChannelsPage /> },
           { path: 'sections', element: <SalesSectionsPage /> },
           { path: 'section-price', element: <SectionPricePage /> },
+          { path: 'category', element: <CategoryPage /> },
+          { path: 'location', element: <LocationPage /> },
         ],
       },
       {
