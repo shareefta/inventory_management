@@ -30,7 +30,6 @@ export const SalesPage = lazy(() => import('src/pages/sales'));
 export const SalesReportPage = lazy(() => import('src/sections/sales/sales-report'));
 export const SalesReturnReport = lazy(() => import('src/sections/sales/sales-return-report'));
 export const NewSalesReturnPage = lazy(() => import('src/sections/sales/new-sales-return'));
-// export const SalesInvoicePrintPage = lazy(() => import('src/sections/sales/sales-invoice-print'));
 
 export const SettingsView = lazy(() => import('src/pages/settings'));
 export const SettingsLayout = lazy(() => import('src/pages/settings/settings-layout'));

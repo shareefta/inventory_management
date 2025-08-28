@@ -40,6 +40,7 @@ class SalesSection(models.Model):
     building_no = models.CharField(max_length=50, blank=True, null=True)
     street_no = models.CharField(max_length=50, blank=True, null=True)
     zone_no = models.CharField(max_length=50, blank=True, null=True)
+    place = models.CharField(max_length=50, blank=True, null=True)
     short_name = models.CharField(max_length=20, blank=True, null=True)
     logo = models.ImageField(upload_to="section_logos/", blank=True, null=True)
 
@@ -156,6 +157,7 @@ class SaleItem(models.Model):
 
     price = models.DecimalField(max_digits=12, decimal_places=2)
     quantity = models.DecimalField(max_digits=12, decimal_places=3)
+    backorder_quantity = models.PositiveIntegerField(default=0)
     total = models.DecimalField(max_digits=14, decimal_places=2)
 
     # For traceability/debug; set from sale.section.location at creation:

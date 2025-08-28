@@ -53,6 +53,7 @@ export default function SalesSectionsPage() {
   const [newBuildingNo, setNewBuildingNo] = useState("");
   const [newStreetNo, setNewStreetNo] = useState("");
   const [newZoneNo, setNewZoneNo] = useState("");
+  const [newPlace, setNewPlace] = useState("");
   const [newShortName, setNewShortName] = useState("");
   const [newLogo, setNewLogo] = useState<File | null>(null);
 
@@ -64,6 +65,7 @@ export default function SalesSectionsPage() {
   const [editingBuildingNo, setEditingBuildingNo] = useState("");
   const [editingStreetNo, setEditingStreetNo] = useState("");
   const [editingZoneNo, setEditingZoneNo] = useState("");
+  const [editingPlace, setEditingPlace] = useState("");
   const [editingShortName, setEditingShortName] = useState("");
   const [editingLogo, setEditingLogo] = useState<File | null>(null);
 
@@ -115,6 +117,7 @@ export default function SalesSectionsPage() {
         building_no: newBuildingNo,
         street_no: newStreetNo,
         zone_no: newZoneNo,
+        place: newPlace,
         short_name: newShortName,
         logo: newLogo,
       });
@@ -126,6 +129,7 @@ export default function SalesSectionsPage() {
       setNewBuildingNo("");
       setNewStreetNo("");
       setNewZoneNo("");
+      setNewPlace("");
       setNewShortName("");
       setNewLogo(null);
       fetchSections();
@@ -147,6 +151,7 @@ export default function SalesSectionsPage() {
         building_no: editingBuildingNo,
         street_no: editingStreetNo,
         zone_no: editingZoneNo,
+        place: editingPlace,
         short_name: editingShortName,
         logo: editingLogo,
       });
@@ -158,6 +163,7 @@ export default function SalesSectionsPage() {
       setEditingBuildingNo("");
       setEditingStreetNo("");
       setEditingZoneNo("");
+      setEditingPlace("");
       setEditingShortName("");
       setEditingLogo(null);
       fetchSections();
@@ -192,7 +198,7 @@ export default function SalesSectionsPage() {
       </Typography>
 
       {/* Add Section */}
-      <Box sx={{ maxWidth: 1200, mb: 3 }}>
+      <Box sx={{ maxWidth: 1400, mb: 3 }}>
         <Box
           sx={{
             display: "flex",
@@ -206,7 +212,7 @@ export default function SalesSectionsPage() {
           }}
         >
           <TextField
-            label="Name"
+            label="Section Name"
             value={newSectionName}
             onChange={(e) => setNewSectionName(e.target.value)}
             size="small"
@@ -227,10 +233,10 @@ export default function SalesSectionsPage() {
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 150, backgroundColor: "white" }}>
-            <InputLabel>Location</InputLabel>
+            <InputLabel>Store</InputLabel>
             <Select
               value={newLocationId}
-              label="Location"
+              label="Store"
               onChange={(e) => setNewLocationId(Number(e.target.value))}
             >
               {locations.map((loc) => (
@@ -262,6 +268,13 @@ export default function SalesSectionsPage() {
             sx={{ backgroundColor: "white" }}
           />
           <TextField
+            label="Place"
+            value={newPlace}
+            onChange={(e) => setNewPlace(e.target.value)}
+            size="small"
+            sx={{ backgroundColor: "white" }}
+          />
+          <TextField
             label="Short Name"
             value={newShortName}
             onChange={(e) => setNewShortName(e.target.value)}
@@ -285,26 +298,27 @@ export default function SalesSectionsPage() {
       </Box>
 
       {/* Table */}
-      <TableContainer component={Paper} sx={{ maxWidth: 1200, boxShadow: 3, borderRadius: 2 }}>
+      <TableContainer component={Paper} sx={{ maxWidth: 1400, boxShadow: 3, borderRadius: 2 }}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>SL No</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Channel</TableCell>
-              <TableCell>Location</TableCell>
-              <TableCell>Building</TableCell>
-              <TableCell>Street</TableCell>
-              <TableCell>Zone</TableCell>
-              <TableCell>Short Name</TableCell>
-              <TableCell>Logo</TableCell>
-              <TableCell>Actions</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>SL No</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Section Name</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Channel</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Store</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Building No.</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Street No.</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Zone No.</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Place</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Short Name</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Logo</TableCell>
+              <TableCell sx={{ textAlign: "center" }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {sections.map((section, index) => (
               <TableRow key={section.id}>
-                <TableCell>{index + 1}</TableCell>
+                <TableCell sx={{ textAlign: "center" }}>{index + 1}</TableCell>
 
                 {/* Name */}
                 <TableCell>
@@ -313,7 +327,7 @@ export default function SalesSectionsPage() {
                       value={editingName}
                       onChange={(e) => setEditingName(e.target.value)}
                       size="small"
-                      sx={{ backgroundColor: "white" }}
+                      sx={{ backgroundColor: "white", minWidth: 200 }}
                     />
                   ) : (
                     section.name
@@ -321,7 +335,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Channel */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <Select
                       value={editingChannelId}
@@ -341,7 +355,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Location */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <Select
                       value={editingLocationId}
@@ -361,7 +375,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Building */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <TextField
                       value={editingBuildingNo}
@@ -375,7 +389,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Street */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <TextField
                       value={editingStreetNo}
@@ -389,7 +403,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Zone */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <TextField
                       value={editingZoneNo}
@@ -402,8 +416,22 @@ export default function SalesSectionsPage() {
                   )}
                 </TableCell>
 
-                {/* Short Name */}
+                {/* Place */}
                 <TableCell>
+                  {editingId === section.id ? (
+                    <TextField
+                      value={editingPlace}
+                      size="small"
+                      onChange={(e) => setEditingPlace(e.target.value)}
+                      sx={{ backgroundColor: "white", minWidth: 150 }}
+                    />
+                  ) : (
+                    section.place || "—"
+                  )}
+                </TableCell> 
+
+                {/* Short Name */}
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <TextField
                       value={editingShortName}
@@ -417,7 +445,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Logo */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <>
                       <Button variant="outlined" component="label" size="small">
@@ -439,7 +467,7 @@ export default function SalesSectionsPage() {
                 </TableCell>
 
                 {/* Actions */}
-                <TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
                   {editingId === section.id ? (
                     <>
                       <Button size="small" onClick={() => handleUpdate(section.id)}>
@@ -461,6 +489,7 @@ export default function SalesSectionsPage() {
                           setEditingBuildingNo(section.building_no || "");
                           setEditingStreetNo(section.street_no || "");
                           setEditingZoneNo(section.zone_no || "");
+                          setEditingPlace(section.place || "");
                           setEditingShortName(section.short_name || "");
                         }}
                       >

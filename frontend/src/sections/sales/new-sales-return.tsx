@@ -1,4 +1,5 @@
 import { useSnackbar } from "notistack";
+import { useLocation } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 
 import {
@@ -41,6 +42,9 @@ export default function NewSalesReturnPage() {
   const [refundMethod, setRefundMethod] = useState<"cash" | "card" | "online" | "wallet">("cash");
   const [loading, setLoading] = useState(false);
 
+  const location = useLocation();
+  const passedSale: Sale | undefined = location.state?.sale;
+
   const handleSearch = async () => {
     if (!searchInput.trim()) {
       enqueueSnackbar("Enter invoice number or scan QR.", { variant: "warning" });
@@ -81,6 +85,22 @@ export default function NewSalesReturnPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (passedSale) {
+      setSale(passedSale);
+
+      const saleItems: SaleItemReturn[] = (passedSale.items || []).map((i) => ({
+        id: i.id,
+        product_name: i.product_name,
+        price: i.price,
+        quantity: i.quantity,
+        selected: false,
+        returnQty: 0,
+      }));
+      setItems(saleItems);
+    }
+  }, [passedSale]);
 
   const handleItemChange = (id: number, key: "selected" | "returnQty", value: any) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)));

@@ -1,5 +1,5 @@
+import type { InvoicePrintProps } from "src/sections/sales/sales-invoice";
 import type { ProductProps } from 'src/sections/product/product-table-row';
-import type { InvoicePrintProps } from "src/sections/sales/sales-invoice-print";
 
 import { useNavigate } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
@@ -20,7 +20,7 @@ import { useAuthStore } from "src/store/use-auth-store";
 import { getProducts, getProductByBarcode } from "src/api/products";
 import { getSections, Sale, createSale, SalesSection, getSectionPrices } from "src/api/sales";
 
-import PosReceipt from "src/sections/sales/sales-invoice-print";
+import PosReceipt from "src/sections/sales/sales-invoice";
 import { SaleToInvoiceProps } from "src/sections/sales/sales-invoice-utils";
 
 interface CartItem {

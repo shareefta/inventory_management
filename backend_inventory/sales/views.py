@@ -262,19 +262,26 @@ def sales_stats(request):
     if today.month < 4:
         fy_start = today.replace(year=today.year - 1, month=4, day=1)
 
-    # Aggregate total sales and returns
-    sales_total = Sale.objects.aggregate(total_sales=Sum('total_amount'))['total_sales'] or 0
-    sales_return_total = SalesReturn.objects.aggregate(total_return=Sum('refund_amount'))['total_return'] or 0
-
-    # Period stats
+    # Helper function to calculate totals net of returns for a period
     def period_stats(start_date, end_date=None):
         end_date = end_date or start_date
-        total = Sale.objects.filter(sale_datetime__date__gte=start_date, sale_datetime__date__lte=end_date)\
-            .aggregate(total=Sum('total_amount'))['total'] or 0
-        returns = SalesReturn.objects.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)\
-            .aggregate(total=Sum('refund_amount'))['total'] or 0
-        return {"total_amount": total, "after_return": total - returns}
 
+        total_sales = Sale.objects.filter(
+            sale_datetime__date__gte=start_date,
+            sale_datetime__date__lte=end_date
+        ).aggregate(total=Sum('total_amount'))['total'] or 0
+
+        total_returns = SalesReturn.objects.filter(
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date
+        ).aggregate(total=Sum('refund_amount'))['total'] or 0
+
+        return {
+            "total_amount": total_sales,
+            "after_return": total_sales - total_returns
+        }
+
+    # Compute period stats
     today_stats = period_stats(today)
     month_stats = period_stats(month_start, today)
     fy_stats = period_stats(fy_start, today)
@@ -288,9 +295,21 @@ def sales_stats(request):
         end_day = monthrange(year, month)[1]
         end_date = date(year, month, end_day)
 
-        total = Sale.objects.filter(sale_datetime__date__gte=start_date, sale_datetime__date__lte=end_date)\
-            .aggregate(total=Sum('total_amount'))['total'] or 0
-        month_totals.append(total)
+        total_sales = Sale.objects.filter(
+            sale_datetime__date__gte=start_date,
+            sale_datetime__date__lte=end_date
+        ).aggregate(total=Sum('total_amount'))['total'] or 0
+
+        total_returns = SalesReturn.objects.filter(
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date
+        ).aggregate(total=Sum('refund_amount'))['total'] or 0
+
+        month_totals.append(total_sales - total_returns)
+
+    # Aggregate totals
+    sales_total = Sale.objects.aggregate(total_sales=Sum('total_amount'))['total_sales'] or 0
+    sales_return_total = SalesReturn.objects.aggregate(total_return=Sum('refund_amount'))['total_return'] or 0
 
     return Response({
         "sales_total": sales_total,

@@ -19,6 +19,7 @@ export interface SalesSection {
   building_no?: string;
   street_no?: string;
   zone_no?: string;
+  place?: string;
   short_name?: string;
   logo?: string;
 }
@@ -116,6 +117,7 @@ export type SectionPayload = {
   building_no?: string;
   street_no?: string;
   zone_no?: string;
+  place?: string;
   short_name?: string;
   logo?: File | string | null; // File when uploading, string when updating
 };
@@ -198,7 +200,7 @@ export const updateSalesReturn = (id: number, data: Partial<SalesReturn>) =>
 export const deleteSalesReturn = (id: number) => api.delete(`sales-returns/${id}/`);
 
 export interface PeriodStats {
-  total_amount: number;
+  total_amount: number; // net of returns
 }
 
 export interface SalesStats {
@@ -214,10 +216,10 @@ export interface SalesStats {
   sales_return_today: number;
   sales_return_month: number;
   sales_return_fy: number;
-  today?: PeriodStats;
-  current_month?: PeriodStats;
-  financial_year?: PeriodStats;
-  month_totals: number[];
+  today?: PeriodStats;          // net
+  current_month?: PeriodStats;  // net
+  financial_year?: PeriodStats; // net
+  month_totals: number[];       // net monthly totals
 }
 
 // ---- GET SALES STATS ----
@@ -232,9 +234,11 @@ export async function getSalesStats(): Promise<SalesStats> {
 
     return {
       ...data,
-      today: { total_amount: data.sales_today },
-      current_month: { total_amount: data.sales_month },
-      financial_year: { total_amount: data.sales_fy },
+      // Use net totals (after subtracting returns)
+      today: { total_amount: data.sales_today_after_return },
+      current_month: { total_amount: data.sales_month_after_return },
+      financial_year: { total_amount: data.sales_fy_after_return },
+      month_totals: data.month_totals, // already net from backend
     };
   } catch (error) {
     console.error('Failed to fetch sales stats:', error);

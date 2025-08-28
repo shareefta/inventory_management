@@ -194,6 +194,7 @@ class PurchaseItem(models.Model):
     purchase = models.ForeignKey(Purchase, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, blank=True, null=True)
     rate = models.DecimalField(max_digits=10, decimal_places=2)
+    fulfilled_backorder = models.PositiveIntegerField(default=0)
 
     # Snapshot fields
     product_name = models.CharField(max_length=200, blank=True, null=True)

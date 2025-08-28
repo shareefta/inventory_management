@@ -1,6 +1,6 @@
 import type { Sale, SaleItem, SalesSection } from "src/api/sales";
 
-import type { InvoicePrintProps } from "./sales-invoice-print";
+import type { InvoicePrintProps } from "./sales-invoice";
 
 /**
  * Convert a Sale object into InvoicePrintProps

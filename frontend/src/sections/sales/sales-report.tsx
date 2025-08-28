@@ -1,44 +1,34 @@
+import type { InvoicePrintProps } from "src/sections/sales/sales-invoice";
+
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect, useMemo  } from "react";
+import { useReactToPrint } from "react-to-print";
+import { useState, useEffect, useMemo, useRef  } from "react";
 
 import UndoIcon from "@mui/icons-material/Undo";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import {
-  Box,
-  Table,
-  TableHead,
-  TableBody,
-  TableCell,
-  TableRow,
-  TableContainer,
-  Paper,
-  Typography,
-  TextField,
-  MenuItem,
-  Breadcrumbs,
-  Link,
-  Stack,
-  Select,
-  InputLabel,
-  FormControl,
-  Fab,
-  Pagination,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton,
-  Tooltip,
-  Button as MuiButton,
+  Box, Table, TableHead, TableBody, TableCell, TableRow,
+  TableContainer, Paper, Typography, TextField, MenuItem,
+  Breadcrumbs, Link, Stack, Select, InputLabel, FormControl,
+  Fab, Pagination, Dialog, DialogTitle, DialogContent,
+  DialogActions, IconButton, Tooltip, Button as MuiButton,
 } from "@mui/material";
 
 import { getSales, getSale, Sale, deleteSale, getSections, SalesSection } from "src/api/sales";
+
+import PosReceipt from "src/sections/sales/sales-invoice";
 
 const paymentModes = ["Cash", "Credit", "Online"] as const;
 
 const SalesReportPage = () => {
   const navigate = useNavigate();
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error" | "info" | "warning">("info");
+
   const [sales, setSales] = useState<Sale[]>([]);
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
   const [sections, setSections] = useState<SalesSection[]>([]);
@@ -58,6 +48,14 @@ const SalesReportPage = () => {
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   const [filterInvoiceMobile, setFilterInvoiceMobile] = useState("");
+
+  const [invoiceData, setInvoiceData] = useState<InvoicePrintProps | null>(null);
+
+  const showSnackbar = (message: string, severity: "success" | "error" | "info" | "warning" = "info") => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
 
   useEffect(() => {
     loadSales();
@@ -80,12 +78,66 @@ const SalesReportPage = () => {
     [sections]
   );
 
-  const handleOpenReturnPage = (saleId: number) => {
-    navigate(`/sales/new-sales-return/${saleId}`);
+  const handleOpenReturnPage = (sale: Sale) => {
+    navigate(`/sales/new-sales-return/${sale.id}`, { state: { sale } });
   };
 
-  const handlePrintInvoice = (saleId: number) => {
-    window.open(`/sales-invoice-print/${saleId}`, "_blank"); 
+  const handlePrint = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: "POS Receipt",
+    pageStyle: `
+      @page { size: 80mm auto; margin: 0; }
+      body { margin: 0; padding: 0; }
+    `,
+  });
+
+  const printInvoice = async (saleId: number) => {
+    try {
+      const sale = await getSale(saleId);
+      if (!sale) return;
+
+      // Try to resolve full section object
+      let sectionObj: SalesSection;
+      if (typeof sale.section === "object") {
+        sectionObj = sale.section;
+      } else {
+        sectionObj =
+          sections.find((s) => s.id === sale.section) || {
+            id: sale.section,
+            name: "Unknown Section",
+            logo: "",
+            building_no: "",
+            street_no: "",
+            zone_no: "",
+            place: "Doha",
+            channel: { id: 0, name: "" },
+            location: 0,
+          };
+      }
+
+      const invoiceProps: InvoicePrintProps = {
+        invoiceNumber: sale.invoice_number || "N/A",
+        section: sectionObj,
+        date: sale.sale_datetime || new Date().toISOString(),
+        customerName: sale.customer_name || "",
+        customerMobile: sale.customer_mobile || "",
+        items: (sale.items || []).map((i: any) => ({
+          name: i.product_name || "",
+          barcode: i.product_barcode || "",
+          qty: i.quantity || 0,
+          price: i.price || 0,
+          total: i.total || 0,
+        })),
+        discount: sale.discount || 0,
+        grandTotal: sale.total_amount || 0,
+        cashier: sale.created_by || "Unknown",
+      };
+
+      setInvoiceData(invoiceProps);
+      setTimeout(() => handlePrint(), 300);
+    } catch (err) {
+      showSnackbar?.("Failed to print invoice", "error");
+    }
   };
 
   useEffect(() => {
@@ -93,16 +145,25 @@ const SalesReportPage = () => {
 
     if (filterSection) filtered = filtered.filter((s) => s.section === filterSection);
     if (filterPayment) filtered = filtered.filter((s) => s.payment_mode === filterPayment);
-    if (filterStartDate)
-      filtered = filtered.filter((s) => s.sale_datetime && new Date(s.sale_datetime) >= new Date(filterStartDate));
-    if (filterEndDate)
-      filtered = filtered.filter((s) => s.sale_datetime && new Date(s.sale_datetime) <= new Date(filterEndDate));
-    if (filterInvoiceMobile)
+
+    if (filterStartDate) {
+      const start = new Date(filterStartDate);
+      filtered = filtered.filter((s) => new Date(s.sale_datetime || "") >= start);
+    }
+
+    if (filterEndDate) {
+      const end = new Date(filterEndDate);
+      end.setHours(23, 59, 59, 999); // include full day
+      filtered = filtered.filter((s) => new Date(s.sale_datetime || "") <= end);
+    }
+
+    if (filterInvoiceMobile) {
       filtered = filtered.filter(
         (s) =>
           s.invoice_number?.toLowerCase().includes(filterInvoiceMobile.toLowerCase()) ||
           s.customer_mobile?.includes(filterInvoiceMobile)
       );
+    }
 
     setFilteredSales(filtered);
     setPage(1);
@@ -327,7 +388,7 @@ const SalesReportPage = () => {
                       color: "black",
                       fontWeight: "bold",
                       textAlign: "center",
-                      border: "1px solid #ddd", // light border
+                      border: "1px solid #ddd",
                     }}
                   >
                     {h}
@@ -380,7 +441,7 @@ const SalesReportPage = () => {
                         <IconButton
                           color="primary"
                           size="small"
-                          onClick={() => handleOpenReturnPage(sale.id!)}
+                          onClick={() => handleOpenReturnPage(sale)}
                         >
                           <UndoIcon />
                         </IconButton>
@@ -391,7 +452,7 @@ const SalesReportPage = () => {
                         <IconButton
                           color="secondary"
                           size="small"
-                          onClick={() => handlePrintInvoice(sale.id!)}
+                          onClick={() => printInvoice(sale.id!)}
                         >
                           <ReceiptIcon />
                         </IconButton>
@@ -447,55 +508,73 @@ const SalesReportPage = () => {
         <DialogTitle>Invoice #{selectedSale?.invoice_number}</DialogTitle>
 
         <DialogContent dividers>
-          {/* Customer & sale info */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle1">Customer: {selectedSale?.customer_name}</Typography>
-            <Typography variant="subtitle2">Date: {selectedSale?.sale_datetime}</Typography>
-          </Box>
-
-          {/* Items table */}
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Product</TableCell>
-                <TableCell align="center">Qty</TableCell>
-                <TableCell align="center">Price</TableCell>
-                <TableCell align="center">Total</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {selectedSale?.items?.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.product_name}</TableCell>
-                  <TableCell align="center">{item.quantity}</TableCell>
-                  <TableCell align="center">{item.price}</TableCell>
-                  <TableCell align="center">{item.total}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          {/* Totals */}
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2">Discount: {selectedSale?.discount}</Typography>
-            <Typography variant="h6">Grand Total: {selectedSale?.total_amount}</Typography>
-          </Box>
+          {selectedSale && (
+            <PosReceipt
+              invoiceNumber={selectedSale.invoice_number || "N/A"}
+              section={
+                typeof selectedSale.section === "object"
+                  ? selectedSale.section
+                  : sections.find((s) => s.id === selectedSale.section) || {
+                      id: selectedSale.section,
+                      name: "Unknown Section",
+                      logo: "",
+                      building_no: "",
+                      street_no: "",
+                      zone_no: "",
+                      place: "Doha",
+                      channel: { id: 0, name: "" },
+                      location: 0,
+                    }
+              }
+              date={selectedSale.sale_datetime || new Date().toISOString()}
+              customerName={selectedSale.customer_name || ""}
+              customerMobile={selectedSale.customer_mobile || ""}
+              cashier={selectedSale.created_by || "Unknown"}
+              discount={selectedSale.discount || 0}
+              grandTotal={selectedSale.total_amount || 0}
+              items={(selectedSale.items || []).map((i: any) => ({
+                name: i.product_name || "",
+                barcode: i.product_barcode || "",
+                qty: i.quantity || 0,
+                price: i.price || 0,
+                total: i.total || 0,
+              }))}
+            />
+          )}
         </DialogContent>
 
         <DialogActions>
-          {/* <MuiButton
-            variant="contained"
-            color="primary"
-            onClick={() => window.open(`/sales-invoice-print/${selectedSale?.id}`, "_blank")}
-          >
-            Print Invoice
-          </MuiButton> */}
-
+          {selectedSale && (
+            <MuiButton
+              onClick={() => printInvoice(selectedSale.id!)}
+              variant="contained"
+              color="primary"
+            >
+              Print
+            </MuiButton>
+          )}
           <MuiButton onClick={handleCloseInvoiceDialog} color="secondary">
             Close
           </MuiButton>
         </DialogActions>
       </Dialog>
+
+      {invoiceData && (
+        <div style={{ display: "none" }}>
+          <PosReceipt
+            ref={receiptRef}
+            invoiceNumber={invoiceData.invoiceNumber}
+            section={invoiceData.section}
+            date={invoiceData.date}
+            customerName={invoiceData.customerName}
+            customerMobile={invoiceData.customerMobile}
+            items={invoiceData.items}
+            discount={invoiceData.discount}
+            grandTotal={invoiceData.grandTotal}
+            cashier={invoiceData.cashier}
+          />
+        </div>
+      )}
     </Box>
   );
 };

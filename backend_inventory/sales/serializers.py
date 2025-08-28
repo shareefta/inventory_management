@@ -40,6 +40,7 @@ class SalesSectionSerializer(serializers.ModelSerializer):
             "building_no",
             "street_no",
             "zone_no",
+            "place",
             "logo",
             "location",
             "channel",
@@ -140,42 +141,34 @@ class SaleSerializer(serializers.ModelSerializer):
         # --- Generate invoice number ---
         section = validated_data["section"]
         today = timezone.now().date()
-        prefix = section.name[:3].upper()
+        prefix = section.short_name.upper()
         date_part = today.strftime("%y%m%d")
-
-        # Count how many sales exist today for this section
         daily_count = Sale.objects.filter(section=section, sale_datetime__date=today).count()
         next_number = daily_count + 1
-
-        invoice_number = f"{prefix}{date_part}{next_number:03d}"  # zero-padded 3 digits
+        invoice_number = f"{prefix}{date_part}{next_number:03d}"
         validated_data["invoice_number"] = invoice_number
 
-        # Create sale with actor & timestamp
+        # Create sale
         sale = Sale.objects.create(created_by=user, **validated_data)
 
         # Resolve stock location from section
         location = sale.section.location
 
-        # Optional: enforce non-negative stock
-        enforce_stock = True
-
-        # Build items and collect stock adjustments
+        # Build items and prepare stock updates
         to_create = []
-        stock_moves = []  # (product_id, qty)
-        
+        stock_moves = []
+
         for item in items_data:
-            product_obj = None
-            if item.get("product"):
-                product_obj = Product.objects.filter(pk=item["product"]).first()
+            product_obj = Product.objects.filter(pk=item["product"]).first() if item.get("product") else None
 
             to_create.append(SaleItem(
                 sale=sale,
                 product=product_obj,
                 product_name=item["product_name"],
                 product_barcode=item.get("product_barcode"),
-                product_brand=item.get("product_brand", "") or "",
-                product_variant=item.get("product_variant", "") or "",
-                serial_number=item.get("serial_number", "") or "",
+                product_brand=item.get("product_brand") or "",
+                product_variant=item.get("product_variant") or "",
+                serial_number=item.get("serial_number") or "",
                 price=item["price"],
                 quantity=item["quantity"],
                 total=item["total"],
@@ -185,30 +178,29 @@ class SaleSerializer(serializers.ModelSerializer):
             if product_obj:
                 stock_moves.append((product_obj.id, item["quantity"]))
 
-        # Create all items at once
+        # Bulk create items
         SaleItem.objects.bulk_create(to_create)
 
-        # Deduct stock per ProductLocation (lock rows for safe concurrent sales)
+        # Deduct stock safely
         for product_id, qty in stock_moves:
-            pl = ProductLocation.objects.select_for_update().filter(
-                product_id=product_id, location=location
-            ).first()
+            pl = ProductLocation.objects.select_for_update().filter(product_id=product_id, location=location).first()
 
             if not pl:
-                if enforce_stock:
-                    raise serializers.ValidationError(
-                        f"No stock record for product {product_id} at {location.name}."
-                    )
-                # else, create it as zero then go negative:
+                # create stock record if missing
                 pl = ProductLocation.objects.create(product_id=product_id, location=location, quantity=0)
 
-            # Check & deduct
-            if enforce_stock and pl.quantity < qty:
-                raise serializers.ValidationError(
-                    f"Insufficient stock for product {product_id} at {location.name} (have {pl.quantity}, need {qty})."
-                )
+            available_qty = pl.quantity
+            if qty > available_qty:
+                # Deduct only what is available
+                pl.quantity = 0
+                backorder_qty = qty - available_qty
+                # Save backorder quantity in SaleItem
+                sale_item = SaleItem.objects.filter(sale=sale, product_id=product_id).first()
+                sale_item.backorder_quantity = backorder_qty
+                sale_item.save(update_fields=["backorder_quantity"])
+            else:
+                pl.quantity = F("quantity") - qty
 
-            pl.quantity = F("quantity") - qty
             pl.save(update_fields=["quantity"])
 
         return sale
