@@ -1,7 +1,7 @@
 from itertools import product
 from rest_framework import serializers
 import json
-from .models import Product, Category, Location, ProductLocation, Purchase, PurchaseItem, PurchaseItemLocation
+from .models import Product, Category, Location, ProductLocation, Purchase, PurchaseItem, PurchaseItemLocation, PaymentMode, PurchasedBy
 from django.db.models import Sum
 from rest_framework.validators import UniqueValidator
 import uuid
@@ -121,6 +121,18 @@ class ProductSerializer(serializers.ModelSerializer):
                 )
         
         return instance
+
+# PaymentMode serializer
+class PaymentModeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentMode
+        fields = ['id', 'name']
+
+# PurchasedBy serializer
+class PurchasedBySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PurchasedBy
+        fields = ['id', 'name']
     
 class PurchaseItemLocationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -164,18 +176,26 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
 
 class PurchaseSerializer(serializers.ModelSerializer):
     items = PurchaseItemSerializer(many=True)
+    payment_mode = PaymentModeSerializer(read_only=True)
+    purchased_by = PurchasedBySerializer(read_only=True)
+    payment_mode_id = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMode.objects.all(), source='payment_mode', write_only=True
+    )
+    purchased_by_id = serializers.PrimaryKeyRelatedField(
+        queryset=PurchasedBy.objects.all(), source='purchased_by', write_only=True
+    )
 
     class Meta:
         model = Purchase
         fields = [
             'id', 'supplier_name', 'contact_number',
             'invoice_number', 'invoice_image', 'purchase_date',
-            'payment_mode', 'discount', 'total_amount', 'purchased_by', 'items'
+            'discount', 'total_amount', 'items', 'payment_mode', 'purchased_by',
+            'payment_mode_id', 'purchased_by_id'
         ]
         read_only_fields = ['total_amount']
 
     def to_internal_value(self, data):
-        # Parse items JSON string before validation
         items = data.get('items')
         if isinstance(items, str):
             try:
@@ -195,9 +215,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
         for item_data in items_data:
             locs_data = item_data.pop('item_locations', [])
 
-            # Fetch product instance for backup
-            product = item_data.get('product')
-            if product:
+            product_id = item_data.get('product')
+            if product_id:
+                product = Product.objects.get(id=product_id)
+                item_data['product'] = product
                 item_data['product_name'] = product.item_name
                 item_data['product_barcode'] = product.unique_id
                 item_data['product_brand'] = product.brand or ''
@@ -222,8 +243,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
             for item_data in items_data:
                 locs_data = item_data.pop('item_locations', [])
 
-                product = item_data.get('product')
-                if product:
+                product_id = item_data.get('product')
+                if product_id:
+                    product = Product.objects.get(id=product_id)
+                    item_data['product'] = product
                     item_data['product_name'] = product.item_name
                     item_data['product_barcode'] = product.unique_id
                     item_data['product_brand'] = product.brand or ''
@@ -239,7 +262,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
                     item.product.rate = item.rate
                     item.product.save()
 
-        # Update other fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 

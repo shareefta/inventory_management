@@ -1,4 +1,3 @@
-// Import remains same...
 import { useEffect, useState, useRef } from 'react';
 
 import Grid from '@mui/material/Grid';
@@ -10,6 +9,7 @@ import {
 
 import { createPurchase } from 'src/api/purchases';
 import { getProducts, getLocations } from 'src/api/products';
+import { getPaymentModes, getPurchasedBys, PaymentMode, PurchasedBy, PurchaseCreatePayload } from 'src/api/purchases';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -26,6 +26,8 @@ type NewPurchaseDialogProps = {
 export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurchaseDialogProps) {
   const [products, setProducts] = useState<ProductProps[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
+  const [purchasedBys, setPurchasedBys] = useState<PurchasedBy[]>([]);
   const [loading, setLoading] = useState(false);
   const dateRef = useRef<HTMLInputElement>(null);
   const productRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -35,8 +37,8 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
     supplier_name: '',
     invoice_number: '',
     purchase_date: '',
-    payment_mode: '',
-    purchased_by: '',
+    payment_mode: null as PaymentMode | null,
+    purchased_by: null as PurchasedBy | null,
     discount: 0,
     invoice_image: null as File | null,
     items: [] as {
@@ -51,8 +53,8 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
       supplier_name: '',
       invoice_number: '',
       purchase_date: '',
-      payment_mode: '',
-      purchased_by: '',
+      payment_mode: null,
+      purchased_by: null,
       discount: 0,
       invoice_image: null,
       items: [],
@@ -67,10 +69,12 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   useEffect(() => {
     if (!open) return;
 
-    Promise.all([getProducts(), getLocations()])
-      .then(([prods, locs]) => {
+    Promise.all([getProducts(), getLocations(), getPaymentModes(), getPurchasedBys()])
+      .then(([prods, locs, modes, bys]) => {
         setProducts(prods.data);
         setLocations(locs);
+        setPaymentModes(modes);
+        setPurchasedBys(bys);
       })
       .catch(console.error);
 
@@ -98,6 +102,10 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   };
 
   const handleSubmit = async () => {
+    if (!form.payment_mode || !form.purchased_by) {
+    console.error("Payment Mode and Purchased By are required");
+    return;
+  }
   setLoading(true);
 
   try {
@@ -116,13 +124,13 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
       }));
 
     // Build the full payload as a plain JSON object
-    const payload = {
+    const payload: PurchaseCreatePayload = {
       supplier_name: form.supplier_name,
       invoice_number: form.invoice_number,
       purchase_date: form.purchase_date,
       discount: form.discount,
-      payment_mode: form.payment_mode as 'Cash' | 'Credit' | 'Card' | 'Online',
-      purchased_by: form.purchased_by as 'AZIZIYAH_SHOP' | 'ALWAB_SHOP' | 'MAIN_STORE' | 'JAMSHEER' | 'FAWAS' | 'IRSHAD' | 'MOOSA' | 'FATHIH' | 'FIROZ',
+      payment_mode_id: form.payment_mode.id!,   // guaranteed to exist
+      purchased_by_id: form.purchased_by.id!,   // guaranteed to exist
       total_amount: grandTotal,
       items: cleanedItems,
     };
@@ -173,18 +181,20 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
           </Grid>
           <Grid size={{ sm:4, md: 2 }} sx={{ minWidth: 150 }}>
             <Autocomplete
-              options={['Cash', 'Credit', 'Online', 'Card']}
+              options={paymentModes}
+              getOptionLabel={option => option.name}
               value={form.payment_mode}
-              onChange={(_, newValue) => handleFormChange('payment_mode', newValue || '')}
-              renderInput={(params) => <TextField {...params} label="Payment Mode" fullWidth />}
+              onChange={(_, newValue) => handleFormChange('payment_mode', newValue)}
+              renderInput={params => <TextField {...params} label="Payment Mode" fullWidth />}
             />
           </Grid>
           <Grid size={{ sm:4, md: 2 }} sx={{ minWidth: 150 }}>
             <Autocomplete
-              options={['AZIZIYAH_SHOP', 'ALWAB_SHOP', 'MAIN_STORE', 'JAMSHEER', 'FAWAS', 'IRSHAD', 'MOOSA', 'FATHIH', 'FIROZ']}
+              options={purchasedBys}
+              getOptionLabel={option => option.name}
               value={form.purchased_by}
-              onChange={(_, newValue) => handleFormChange('purchased_by', newValue || '')}
-              renderInput={(params) => <TextField {...params} label="Purchased By" fullWidth />}
+              onChange={(_, newValue) => handleFormChange('purchased_by', newValue)}
+              renderInput={params => <TextField {...params} label="Purchased By" fullWidth />}
             />
           </Grid>
         </Grid>

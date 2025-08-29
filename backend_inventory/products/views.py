@@ -4,8 +4,8 @@ from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Product, Category, Location, Purchase, ProductLocation, PurchaseItemLocation
-from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer, PurchaseDetailSerializer
+from .models import Product, Category, Location, Purchase, ProductLocation, PurchaseItemLocation, PaymentMode, PurchasedBy
+from .serializers import ProductSerializer, CategorySerializer, LocationSerializer, PurchaseSerializer, PurchaseDetailSerializer, PaymentModeSerializer, PurchasedBySerializer
 import io
 import barcode
 from barcode.writer import ImageWriter
@@ -77,6 +77,22 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class LocationViewSet(viewsets.ModelViewSet):
     queryset = Location.objects.all()
     serializer_class = LocationSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+# ----------------------------
+# PaymentMode ViewSet
+# ----------------------------
+class PaymentModeViewSet(viewsets.ModelViewSet):
+    queryset = PaymentMode.objects.all().order_by('name')
+    serializer_class = PaymentModeSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+# ----------------------------
+# PurchasedBy ViewSet
+# ----------------------------
+class PurchasedByViewSet(viewsets.ModelViewSet):
+    queryset = PurchasedBy.objects.all().order_by('name')
+    serializer_class = PurchasedBySerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
 class PurchaseViewSet(viewsets.ModelViewSet):

@@ -37,6 +37,8 @@ export const SettingsMenuPage = lazy(() => import('src/pages/settings/settings-m
 export const SalesChannelsPage = lazy(() => import('src/pages/settings/sales-channels'));
 export const SalesSectionsPage = lazy(() => import('src/pages/settings/sales-sections'));
 export const SectionPricePage = lazy(() => import('src/pages/settings/section-wise-price'));
+export const PaymentModesPage = lazy(() => import('src/pages/settings/payment-modes'));
+export const PurchasedByPage = lazy(() => import('src/pages/settings/purchased-by'));
 
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
@@ -87,6 +89,8 @@ export const routesSection: RouteObject[] = [
           { path: 'section-price', element: <SectionPricePage /> },
           { path: 'category', element: <CategoryPage /> },
           { path: 'location', element: <LocationPage /> },
+          { path: 'payment-modes', element: <PaymentModesPage /> },
+          { path: 'purchased-by', element: <PurchasedByPage /> },
         ],
       },
       {

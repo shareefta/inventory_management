@@ -147,6 +147,17 @@ def invoice_image_upload_path(instance, filename):
     new_filename = f"{uuid.uuid4()}{ext}"
     return f'invoices/{new_filename}'
 
+class PaymentMode(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
+
+class PurchasedBy(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
 
 class Purchase(models.Model):
     PAYMENT_CHOICES = [
@@ -170,8 +181,8 @@ class Purchase(models.Model):
 
     supplier_name = models.CharField(max_length=100)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
-    payment_mode = models.CharField(max_length=20, choices=PAYMENT_CHOICES, blank=True, null=True)
-    purchased_by = models.CharField(max_length=20, choices=PURCHASED_BY, blank=True, null=True)
+    payment_mode = models.ForeignKey(PaymentMode, on_delete=models.SET_NULL, null=True, blank=True)
+    purchased_by = models.ForeignKey(PurchasedBy, on_delete=models.SET_NULL, null=True, blank=True)
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     purchase_date = models.DateField()
     total_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)

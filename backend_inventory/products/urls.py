@@ -1,12 +1,18 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ProductViewSet, CategoryViewSet, LocationViewSet, scan_barcode, PurchaseViewSet, generate_barcode, product_stats, export_products_excel, purchase_stats
+from .views import (
+    ProductViewSet, CategoryViewSet, LocationViewSet, scan_barcode, PurchaseViewSet, 
+    generate_barcode, product_stats, export_products_excel, purchase_stats,
+    PaymentModeViewSet, PurchasedByViewSet
+)
 
 router = DefaultRouter()
 router.register(r'products', ProductViewSet, basename='product')
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'locations', LocationViewSet, basename='location')
 router.register(r'purchases', PurchaseViewSet, basename='purchase')
+router.register(r'payment-modes', PaymentModeViewSet, basename='payment_mode')
+router.register(r'purchased-by', PurchasedByViewSet, basename='purchased_by')
 
 urlpatterns = [
     path('', include(router.urls)),

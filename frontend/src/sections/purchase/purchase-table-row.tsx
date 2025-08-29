@@ -101,8 +101,8 @@ export function PurchaseTableRow({
             ? row.total_amount.toFixed(2)
             : Number(row.total_amount || 0).toFixed(2)}
         </TableCell>
-        <TableCell>{row.payment_mode}</TableCell>
-        <TableCell>{row.purchased_by}</TableCell>
+        <TableCell>{row.payment_mode?.name || '—'}</TableCell>
+        <TableCell>{row.purchased_by?.name || '—'}</TableCell>
         <TableCell align="right">
           <IconButton onClick={handleOpenPopover}>
             <Iconify icon="eva:more-vertical-fill" />
