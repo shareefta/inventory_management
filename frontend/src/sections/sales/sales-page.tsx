@@ -465,6 +465,8 @@ export default function SalesPage() {
                     <TableCell align="center">{idx + 1}</TableCell>
                     <TableCell align="center">{item.product_barcode}</TableCell>
                     <TableCell>{item.product_name}</TableCell>
+
+                    {/* Quantity (editable) */}
                     <TableCell align="center">
                       <TextField
                         type="number"
@@ -474,7 +476,34 @@ export default function SalesPage() {
                         sx={{ width: 70 }}
                       />
                     </TableCell>
-                    <TableCell align="center">{item.price}</TableCell>
+
+                    {/* Price (editable now ✅) */}
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={item.price}
+                        onChange={(e) => {
+                          let newPrice = Number(e.target.value) || 0;
+
+                          // ✅ Validation: force at least 1
+                          if (newPrice < 1) newPrice = 1;
+
+                          setSalesInstances(prev =>
+                            prev.map(sale => {
+                              if (sale.id !== activeSaleId) return sale;
+                              const updatedItems = [...sale.cartItems];
+                              updatedItems[idx].price = newPrice;
+                              updatedItems[idx].total = updatedItems[idx].quantity * newPrice;
+                              return { ...sale, cartItems: updatedItems };
+                            })
+                          );
+                        }}
+                        size="small"
+                        sx={{ width: 90 }}
+                        inputProps={{ min: 1 }}
+                      />
+                    </TableCell>
+
                     <TableCell align="center">{item.total}</TableCell>
                     <TableCell align="center">
                       <Button size="small" color="error" onClick={() => removeItem(idx)}>Remove</Button>

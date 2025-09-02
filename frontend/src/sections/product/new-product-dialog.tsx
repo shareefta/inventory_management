@@ -18,8 +18,6 @@ import {
   Box,
   IconButton,
   InputAdornment,
-  Snackbar,
-  Alert,
 } from '@mui/material';
 
 import { fetchFromBarcodeLookup } from 'src/api/barcode-lookup';
@@ -58,6 +56,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
     description: '',
   });
 
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
   useEffect(() => {
     if (!open) return;
     Promise.all([getCategories(), getLocations()])
@@ -78,6 +78,7 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +87,40 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
     setForm((f) => ({ ...f, image: file }));
   };
 
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!form.item_name.trim()) newErrors.item_name = 'Item name is required';
+    if (!form.category_id) newErrors.category_id = 'Category is required';
+    if (form.rate === '' || form.rate === null) {
+      newErrors.rate = 'Rate is required';
+    } else if (Number(form.rate) < 0) {
+      newErrors.rate = 'Rate cannot be negative';
+    }
+
+    // if (form.locations.length === 0) {
+    //   newErrors.locations = 'At least one location is required';
+    // } else {
+    //   form.locations.forEach((loc, index) => {
+    //     if (!loc.location_id) {
+    //       newErrors[`location_${index}`] = 'Location is required';
+    //     }
+    //     if (!loc.quantity || loc.quantity <= 0) {
+    //       newErrors[`quantity_${index}`] = 'Quantity must be greater than 0';
+    //     }
+    //   });
+    // }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async () => {
+    if (!validateForm()) {
+      enqueueSnackbar('Please fix validation errors.', { variant: 'error' });
+      return;
+    }
+
     setLoading(true);
     try {
       const data = new FormData();
@@ -223,6 +257,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           fullWidth
           margin="normal"
           required
+          error={!!errors.item_name}
+          helperText={errors.item_name}
         />
 
         <TextField
@@ -269,6 +305,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
               fullWidth
               margin="normal"
               required
+              error={!!errors.category_id}
+              helperText={errors.category_id}
             />
           )}
         />
@@ -304,6 +342,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
                     fullWidth
                     margin="normal"
                     required
+                    // error={!!errors[`location_${index}`]}
+                    // helperText={errors[`location_${index}`]}
                     inputRef={index === form.locations.length - 1 ? lastLocationRef : null}
                   />
                 )}
@@ -320,6 +360,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
                 }}
                 sx={{ width: 100 }}
                 onWheel={(e) => (e.target as HTMLElement).blur()}
+                // error={!!errors[`quantity_${index}`]}
+                // helperText={errors[`quantity_${index}`]}
               />
 
               <IconButton
@@ -361,6 +403,8 @@ export default function NewProductDialog({ open, onClose, onSuccess, initialBarc
           fullWidth
           margin="normal"
           required
+          error={!!errors.rate}
+          helperText={errors.rate}
           onWheel={(e) => (e.target as HTMLElement).blur()}
         />
 

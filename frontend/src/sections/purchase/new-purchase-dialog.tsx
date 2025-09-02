@@ -1,15 +1,14 @@
-import { useEffect, useState, useRef } from 'react';
+import debounce from 'lodash/debounce';
+import { useEffect, useState, useRef, useMemo } from 'react';
 
-import Grid from '@mui/material/Grid';
 import {
   Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, MenuItem, CircularProgress,
-  Box, IconButton, Typography
+  Button, TextField, CircularProgress, Box, IconButton, Typography
 } from '@mui/material';
 
 import { createPurchase } from 'src/api/purchases';
 import { getProducts, getLocations } from 'src/api/products';
-import { getPaymentModes, getPurchasedBys, PaymentMode, PurchasedBy, PurchaseCreatePayload } from 'src/api/purchases';
+import { getPaymentModes, getPurchasedBys, PaymentMode, PurchasedBy, PurchaseCreatePayload, getSuppliers } from 'src/api/purchases';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -28,10 +27,17 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
   const [locations, setLocations] = useState<Location[]>([]);
   const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
   const [purchasedBys, setPurchasedBys] = useState<PurchasedBy[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [productOptions, setProductOptions] = useState<ProductProps[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
   const dateRef = useRef<HTMLInputElement>(null);
   const productRefs = useRef<(HTMLInputElement | null)[]>([]);
   const locationRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});  
 
   const [form, setForm] = useState({
     supplier_name: '',
@@ -40,11 +46,10 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
     payment_mode: null as PaymentMode | null,
     purchased_by: null as PurchasedBy | null,
     discount: 0,
-    invoice_image: null as File | null,
     items: [] as {
-      product: number | '';
+      product: ProductProps | null;
       rate: number;
-      item_locations: { location: number | ''; quantity: number }[];
+      item_locations: { location: number | null; quantity: number }[];
     }[],
   });
 
@@ -56,7 +61,6 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
       payment_mode: null,
       purchased_by: null,
       discount: 0,
-      invoice_image: null,
       items: [],
     });
   };
@@ -83,337 +87,416 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
     }, 100);
   }, [open]);
 
-  const handleFormChange = (field: string, value: any) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleItemChange = (index: number, field: string, value: any) => {
-    const updated = [...form.items];
-    (updated[index] as any)[field] = value;
-    setForm((f) => ({ ...f, items: updated }));
-  };
-
-  const handleItemLocationChange = (itemIndex: number, locIndex: number, field: string, value: any) => {
-    const updated = [...form.items];
-    if (field === 'location' || field === 'quantity') {
-      updated[itemIndex].item_locations[locIndex][field] = value;
+  // fetch products from API dynamically based on search
+  const fetchProducts = async (search: string) => {
+    setLoadingProducts(true);
+    try {
+      const res = await getProducts(1, 50, search);
+      setProductOptions(res.data);
+    } catch (err) {
+      console.error(err);
+      setProductOptions([]);
+    } finally {
+      setLoadingProducts(false);
     }
+  };
+
+  // debounce so we don't spam API
+  const debouncedFetchProducts = useMemo(() => debounce(fetchProducts, 500), []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchSuppliers = async () => {
+      setLoadingSuppliers(true);
+      try {
+        const res = await getSuppliers();
+        setSuppliers(res);
+      } catch (err) {
+        console.error("Failed to fetch suppliers:", err);
+      } finally {
+        setLoadingSuppliers(false);
+      }
+    };
+
+    fetchSuppliers();
+  }, [open]);
+
+  const handleFormChange = (field: string, value: any) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const handleItemChange = (
+    index: number,
+    field: "product" | "rate",
+    value: any
+  ) => {
+    const updated = [...form.items];
+
+    if (field === "product") {
+      updated[index].product = value;
+      if (value && updated[index].rate === 0) {
+        updated[index].rate = value.rate || 0;
+      }
+      setErrors((prev) => ({ ...prev, [`item_${index}_product`]: "" }));
+    }
+
+    if (field === "rate") {
+      updated[index].rate = value;
+      setErrors((prev) => ({ ...prev, [`item_${index}_rate`]: "" }));
+    }
+
     setForm((f) => ({ ...f, items: updated }));
+  };
+
+  const handleItemLocationChange = (
+    itemIndex: number,
+    locIndex: number,
+    field: "location" | "quantity",
+    value: number | null
+  ) => {
+    const updated = [...form.items];
+
+    if (field === "location") {
+      // location can be number or null
+      updated[itemIndex].item_locations[locIndex].location = value;
+    } else {
+      // quantity must be number
+      updated[itemIndex].item_locations[locIndex].quantity = value ?? 0;
+    }
+
+    setForm((f) => ({ ...f, items: updated }));
+    setErrors((prev) => ({
+      ...prev,
+      [`item_${itemIndex}_loc_${locIndex}_${field}`]: "",
+    }));
+  };
+
+  const addItem = () => {
+    setForm(f => ({ ...f, items: [...f.items, { product: null, rate: 0, item_locations: [] }] }));
+    setTimeout(() => {
+      productRefs.current[form.items.length]?.focus();
+    }, 100);
+  };
+
+  const addLocation = (itemIdx: number) => {
+    const updated = [...form.items];
+    updated[itemIdx].item_locations.push({ location: null, quantity: 0 });
+    setForm(f => ({ ...f, items: updated }));
+    setTimeout(() => {
+      locationRefs.current[`${itemIdx}-${updated[itemIdx].item_locations.length - 1}`]?.focus();
+    }, 100);
+  };
+
+  const validateForm = (): boolean => {
+    let valid = true;
+    const newErrors: { [key: string]: string } = {};
+
+    if (!form.purchase_date) { newErrors.purchase_date = 'Purchase date is required'; valid = false; }
+    if (!form.supplier_name) { newErrors.supplier_name = 'Supplier is required'; valid = false; }
+    if (!form.invoice_number) { newErrors.invoice_number = 'Invoice number is required'; valid = false; }
+    if (!form.payment_mode) { newErrors.payment_mode = 'Payment mode is required'; valid = false; }
+    if (!form.purchased_by) { newErrors.purchased_by = 'Purchased by is required'; valid = false; }
+
+    form.items.forEach((item, i) => {
+      if (!item.product) { newErrors[`item_${i}_product`] = 'Product is required'; valid = false; }
+      if (item.rate <= 0) { newErrors[`item_${i}_rate`] = 'Rate must be greater than 0'; valid = false; }
+      if (item.item_locations.length === 0) { newErrors[`item_${i}_loc`] = 'At least one location is required'; valid = false; }
+      item.item_locations.forEach((loc, j) => {
+        if (!loc.location) { newErrors[`item_${i}_loc_${j}_location`] = 'Location is required'; valid = false; }
+        if (loc.quantity <= 0) { newErrors[`item_${i}_loc_${j}_quantity`] = 'Quantity must be > 0'; valid = false; }
+      });
+    });
+
+    setErrors(newErrors);
+    return valid;
   };
 
   const handleSubmit = async () => {
-    if (!form.payment_mode || !form.purchased_by) {
-    console.error("Payment Mode and Purchased By are required");
-    return;
-  }
-  setLoading(true);
+    if (!validateForm()) return;
 
-  try {
-    // Filter and clean up items before submission
-    const cleanedItems = form.items
-      .filter((item) => item.product !== '')
-      .map((item) => ({
-        product: Number(item.product),
-        rate: item.rate,
-        item_locations: item.item_locations
-          .filter((loc) => loc.location !== '')
-          .map((loc) => ({
-            location: Number(loc.location),
-            quantity: loc.quantity,
-          })),
-      }));
+    setLoading(true);
 
-    // Build the full payload as a plain JSON object
-    const payload: PurchaseCreatePayload = {
-      supplier_name: form.supplier_name,
-      invoice_number: form.invoice_number,
-      purchase_date: form.purchase_date,
-      discount: form.discount,
-      payment_mode_id: form.payment_mode.id!,   // guaranteed to exist
-      purchased_by_id: form.purchased_by.id!,   // guaranteed to exist
-      total_amount: grandTotal,
-      items: cleanedItems,
-    };
+    try {
+      const cleanedItems = form.items
+        .filter(item => item.product)
+        .map(item => ({
+          product: Number(item.product?.id ?? item.product),
+          rate: item.rate,
+          item_locations: item.item_locations
+            .filter(loc => loc.location !== null)
+            .map(loc => ({ location: Number(loc.location), quantity: loc.quantity })),
+        }));
 
-    // Make the POST request
-    await createPurchase(payload);
-    onSuccess();
-    onClose();
-    resetForm();
-  } catch (error: any) {
-    console.error('❌ Purchase create failed:', error);
-    if (error.response?.data) {
-      console.error('📩 Server response:', error.response.data);
+      const payload: PurchaseCreatePayload = {
+        supplier_name: form.supplier_name,
+        invoice_number: form.invoice_number,
+        purchase_date: form.purchase_date,
+        discount: form.discount,
+        payment_mode_id: form.payment_mode!.id!,
+        purchased_by_id: form.purchased_by!.id!,
+        total_amount: grandTotal,
+        items: cleanedItems,
+      };
+
+      await createPurchase(payload);
+      onSuccess();
+      onClose();
+      resetForm();
+    } catch (error: any) {
+      console.error('❌ Purchase create failed:', error);
+      if (error.response?.data) console.error('📩 Server response:', error.response.data);
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-  const isFormValid = form.items.length > 0 && form.items.every(
-    item => item.product !== '' && item.item_locations.length > 0
-  );
+  const isFormValid = form.items.length > 0 && form.items.every(item => item.product && item.item_locations.length > 0);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
       <DialogTitle>Create New Purchase</DialogTitle>
       <DialogContent dividers>
-
-        {/* Section 1: Purchase Details */}
+        {/* Purchase Details */}
         <Typography variant="h6" gutterBottom>Purchase Details</Typography>
-        <Grid container spacing={1} mb={3}>
-          <Grid size={{ sm:6, md: 2 }}>
-            <TextField label="Purchase Date" type="date" fullWidth InputLabelProps={{ shrink: true }}
-              value={form.purchase_date}
-              onChange={(e) => handleFormChange('purchase_date', e.target.value)} 
-              inputRef={dateRef}
-            />
-          </Grid>
-          <Grid size={{ sm:12, md: 4 }}>
-            <TextField label="Supplier Name" fullWidth
-              value={form.supplier_name}
-              onChange={(e) => handleFormChange('supplier_name', e.target.value)} />
-          </Grid>
-          <Grid size={{ sm:4, md: 2 }}>
-            <TextField label="Invoice Number" fullWidth
-              value={form.invoice_number}
-              onChange={(e) => handleFormChange('invoice_number', e.target.value)} />
-          </Grid>
-          <Grid size={{ sm:4, md: 2 }} sx={{ minWidth: 150 }}>
-            <Autocomplete
-              options={paymentModes}
-              getOptionLabel={option => option.name}
-              value={form.payment_mode}
-              onChange={(_, newValue) => handleFormChange('payment_mode', newValue)}
-              renderInput={params => <TextField {...params} label="Payment Mode" fullWidth />}
-            />
-          </Grid>
-          <Grid size={{ sm:4, md: 2 }} sx={{ minWidth: 150 }}>
-            <Autocomplete
-              options={purchasedBys}
-              getOptionLabel={option => option.name}
-              value={form.purchased_by}
-              onChange={(_, newValue) => handleFormChange('purchased_by', newValue)}
-              renderInput={params => <TextField {...params} label="Purchased By" fullWidth />}
-            />
-          </Grid>
-        </Grid>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+          <TextField
+            label="Purchase Date"
+            type="date"
+            value={form.purchase_date}
+            onChange={e => handleFormChange('purchase_date', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 150 }}
+            inputRef={dateRef}
+            error={!!errors.purchase_date}
+            helperText={errors.purchase_date}
+          />
+          <Autocomplete
+            freeSolo
+            options={suppliers}
+            value={form.supplier_name}
+            onChange={(_, val) => handleFormChange('supplier_name', val ?? '')}
+            onInputChange={(_, val) => handleFormChange('supplier_name', val)}
+            loading={loadingSuppliers}
+            sx={{ minWidth: 200 }}
+            renderInput={params => (
+              <TextField {...params} label="Supplier Name" fullWidth
+                error={!!errors.supplier_name}
+                helperText={errors.supplier_name}
+                InputProps={{ ...params.InputProps, endAdornment: loadingSuppliers ? <CircularProgress size={20} /> : params.InputProps.endAdornment }}
+              />
+            )}
+          />
+          <TextField
+            label="Invoice Number"
+            value={form.invoice_number}
+            onChange={e => handleFormChange('invoice_number', e.target.value)}
+            sx={{ minWidth: 150 }}
+            error={!!errors.invoice_number}
+            helperText={errors.invoice_number}
+          />
+          <Autocomplete
+            options={paymentModes}
+            getOptionLabel={option => option.name}
+            value={form.payment_mode}
+            onChange={(_, val) => handleFormChange('payment_mode', val)}
+            sx={{ minWidth: 200 }}
+            renderInput={params => (
+              <TextField
+                {...params}
+                label="Payment Mode"
+                fullWidth
+                error={!!errors.payment_mode}
+                helperText={errors.payment_mode}
+              />
+            )}
+          />
 
-        {/* Section 2: Products */}
-        <Typography variant="h6" gutterBottom>Products</Typography>
-        {form.items.map((item, index) => {
-          const totalQty = item.item_locations.reduce((sum, l) => sum + l.quantity, 0);
-          const rowTotal = item.rate * totalQty;
-
-          return (
-            <Grid  container spacing={1} key={index} alignItems="flex-start" >
-              <Grid size={{ sm:12, md: 9 }}>
-                <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                  <Grid size={{ sm:10, md: 4 }} sx={{ minWidth: 150 }}>
-                    <Autocomplete
-                      options={products}
-                      loading={loading}
-                      // Dropdown label (name + barcode + serial)
-                      getOptionLabel={(option) => {
-                        let label = option.itemName;
-                        if (option.uniqueId) label += ` (Barcode: ${option.uniqueId})`;
-                        if (option.serialNumber) label += ` (SN: ${option.serialNumber})`;
-                        return label;
-                      }}
-
-                      // Ensure selected value shows ONLY the product name
-                      renderOption={(props, option) => (
-                        <li {...props}>
-                          {option.itemName}
-                          {option.uniqueId && <span style={{ color: "gray", marginLeft: 6 }}>Barcode: {option.uniqueId}</span>}
-                          {option.serialNumber && <span style={{ color: "gray", marginLeft: 6 }}>SN: {option.serialNumber}</span>}
-                        </li>
-                      )}
-
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Product"
-                          fullWidth
-                          inputRef={(el) => {
-                            productRefs.current[index] = el;
-                          }}
-                          onChange={async (e) => {
-                            const search = e.target.value;
-                            if (search.length >= 2) {  // only search after 2+ chars
-                              setLoading(true);
-                              try {
-                                const res = await getProducts(1, 25, search);
-                                setProducts(res.data);
-                              } finally {
-                                setLoading(false);
-                              }
-                            }
-                          }}
-                        />
-                      )}
-                      // Value handling
-                      value={products.find((p) => p.id === item.product) || null}
-                      onChange={(_, newValue) =>
-                        handleItemChange(index, "product", newValue ? newValue.id : "")
-                      }
-
-                      // Allow searching by name, barcode, or serial number
-                      filterOptions={(options, { inputValue }) => {
-                        const search = inputValue.toLowerCase();
-                        return options.filter(
-                          (opt) =>
-                            opt.itemName.toLowerCase().includes(search) ||
-                            (opt.uniqueId && opt.uniqueId.toLowerCase().includes(search)) ||
-                            (opt.serialNumber && opt.serialNumber.toLowerCase().includes(search))
-                        );
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid size={{ sm:2, md: 1.5 }}>
-                    <TextField label="Rate" type="number" fullWidth
-                      value={item.rate}
-                      onChange={(e) => handleItemChange(index, 'rate', Math.max(0, Number(e.target.value)))} 
-                      onWheel={(e) => (e.target as HTMLElement).blur()}  
-                    />
-                  </Grid>
-
-                  {item.item_locations.map((loc, locIndex) => (
-                    <Grid size={{ sm:6, md: 4}} key={locIndex} sx={{ display: 'flex', gap: 1 }}>
-                      <Autocomplete
-                        options={locations.filter((l) =>
-                          !item.item_locations.some((il, i) => il.location === l.id && i !== locIndex)
-                        )}
-                        getOptionLabel={(option) => option.name}
-                        value={locations.find(l => l.id === loc.location) || null}
-                        onChange={(_, newValue) =>
-                          handleItemLocationChange(index, locIndex, 'location', newValue ? newValue.id : '')
-                        }
-                        renderInput={(params) => {
-                          const key = `${index}-${locIndex}`;
-                          return (
-                            <TextField
-                              {...params}
-                              label="Location"
-                              sx={{ flex: 1, minWidth: 150 }}
-                              inputRef={(el) => {
-                                locationRefs.current[key] = el;
-                              }}
-                            />
-                          );
-                        }}
-                      />
-                      <TextField label="Qty" type="number" value={loc.quantity}
-                        onChange={(e) => handleItemLocationChange(index, locIndex, 'quantity', Number(e.target.value))}
-                        sx={{ width: 80 }} onWheel={(e) => (e.target as HTMLElement).blur()} />
-
-                      <IconButton onClick={() => {
-                        const updated = [...form.items];
-                        updated[index].item_locations = updated[index].item_locations.filter((_, i) => i !== locIndex);
-                        setForm((f) => ({ ...f, items: updated }));
-                      }}>
-                        <Iconify icon="solar:trash-bin-trash-bold" />
-                      </IconButton>
-                    </Grid>
-                  ))}
-
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={() => {
-                      const updated = [...form.items];
-                      updated[index].item_locations.push({ location: '', quantity: 0 });
-                      setForm((f) => ({ ...f, items: updated }));
-
-                      setTimeout(() => {
-                        const key = `${index}-${updated[index].item_locations.length - 1}`;
-                        locationRefs.current[key]?.focus();
-                      }, 100);
-                    }}
-                  >
-                    + Stock
-                  </Button>
-                </Grid>
-              </Grid>
-              <Grid size={{ sm:12, md: 3 }}>
-                <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                  <Grid size={{ sm:6, md: 8 }}>
-                    <Box
-                      sx={{
-                        border: '1px solid #ccc',
-                        borderRadius: 2,
-                        padding: 1,
-                        textAlign: 'center',
-                        backgroundColor: '#f9f9f9',
-                      }}
-                    >
-                      <Typography variant="subtitle2">Product Total</Typography>
-                      <Typography sx={{ minWidth: 150 }} fontWeight="bold">{rowTotal.toFixed(2)}</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid size={{ sm:6, md: 4 }}>
-                    <IconButton onClick={() => {
-                      const updated = [...form.items];
-                      updated.splice(index, 1);
-                      setForm((f) => ({ ...f, items: updated }));
-                    }}>
-                      <Iconify icon="solar:trash-bin-trash-bold" />
-                    </IconButton>
-                  </Grid>
-                </Grid> 
-              </Grid>                                         
-            </Grid>
-          );
-        })}
-
-        <Box textAlign="right" mb={3}>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setForm((f) => ({
-                ...f,
-                items: [...f.items, { product: '', rate: 0, item_locations: [] }],
-              }));
-
-              setTimeout(() => {
-                const lastIndex = productRefs.current.length - 1;
-                productRefs.current[lastIndex]?.focus();
-              }, 100);
-            }}
-          >
-            + Add Item
-          </Button>
+          <Autocomplete
+            options={purchasedBys}
+            getOptionLabel={option => option.name}
+            value={form.purchased_by}
+            onChange={(_, val) => handleFormChange('purchased_by', val)}
+            sx={{ minWidth: 200 }}
+            renderInput={params => (
+              <TextField
+                {...params}
+                label="Purchased By"
+                fullWidth
+                error={!!errors.purchased_by}
+                helperText={errors.purchased_by}
+              />
+            )}
+          />
         </Box>
 
-        {/* Section 3: Summary */}
-        <Typography variant="h6" gutterBottom>Summary</Typography>
-        <Grid container spacing={1} alignItems="center">
-          <Grid size={{ sm:4, md: 3 }}>
-            <TextField label="Discount" type="number" fullWidth
-              value={form.discount}
-              onChange={(e) => handleFormChange('discount', Number(e.target.value))} />
-          </Grid>
-          <Grid size={{ sm:6, md: 3 }}>
-            <Box
-              sx={{
-                border: '1px solid #ccc',
-                borderRadius: 2,
-                padding: 1,
-                textAlign: 'center',
-                backgroundColor: '#f9f9f9',
-              }}
-            >
-              <Typography variant="subtitle2">Grand Total</Typography>
-              <Typography sx={{ minWidth: 150 }} variant="h6">{(Number(grandTotal) || 0).toFixed(2)}</Typography>
-            </Box>
-          </Grid>
-        </Grid>
+        {/* Add Item Button */}
+        <Box textAlign="right" mb={1}>
+          <Button variant="contained" onClick={() =>
+            setForm(f => ({ ...f, items: [...f.items, { product: null, rate: 0, item_locations: [] }] }))
+          }>+ Add Item</Button>
+        </Box>
+
+        {/* Products Table */}
+        <Box sx={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f0f0f0' }}>
+                <th style={{ border: '1px solid #ccc' }}>Sl. No.</th>
+                <th style={{ border: '1px solid #ccc' }}>Item Name</th>
+                <th style={{ border: '1px solid #ccc' }}>Rate</th>
+                <th style={{ border: '1px solid #ccc' }}>Location & Qty</th>
+                <th style={{ border: '1px solid #ccc' }}>Total Qty</th>
+                <th style={{ border: '1px solid #ccc' }}>Item Total</th>
+                <th style={{ border: '1px solid #ccc' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {form.items.map((item, idx) => {
+                const totalQty = item.item_locations.reduce((sum, l) => sum + l.quantity, 0);
+                const rowTotal = totalQty * item.rate;
+                return (
+                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                    <td style={{ textAlign: 'center', padding: 8, border: '1px solid #ccc' }}>{idx + 1}</td>
+                    <td style={{ padding: 8, minWidth: 350, border: '1px solid #ccc' }}>
+                      <Autocomplete
+                        options={productOptions}
+                        loading={loadingProducts}
+                        getOptionLabel={(option) =>
+                          `${option.itemName} | ${option.uniqueId} | ${option.serialNumber}`
+                        }
+                        value={item.product}
+                        onChange={(_, val) => handleItemChange(idx, "product", val)}
+                        onInputChange={(_, val) => debouncedFetchProducts(val)}
+                        renderInput={params => (
+                          <TextField
+                            {...params}
+                            label="Product"
+                            fullWidth
+                            inputRef={el => productRefs.current[idx] = el}
+                            error={!!errors[`item_${idx}_product`]}
+                            helperText={errors[`item_${idx}_product`]}
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {loadingProducts && <CircularProgress size={20} />}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                    </td>
+                    <td style={{ padding: 8, width: 100, border: '1px solid #ccc' }}>
+                      <TextField
+                        type="number"
+                        value={item.rate}
+                        onChange={(e) =>
+                          handleItemChange(idx, "rate", Math.max(0, Number(e.target.value) || 0))
+                        }
+                        fullWidth
+                        error={!!errors[`item_${idx}_rate`]}
+                        helperText={errors[`item_${idx}_rate`]}
+                      />
+                    </td>
+                    <td style={{ padding: 8, minWidth: 300, border: '1px solid #ccc' }}>
+                      {item.item_locations.map((loc, locIdx) => (
+                        <Box key={locIdx} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
+                          <Autocomplete
+                            options={locations.filter(
+                              (l) =>
+                                !item.item_locations.some(
+                                  (il, i) => il.location === l.id && i !== locIdx
+                                )
+                            )}
+                            getOptionLabel={(option) => option.name}
+                            value={locations.find((l) => l.id === loc.location) || null}
+                            onChange={(_, newVal) =>
+                              handleItemLocationChange(idx, locIdx, "location", newVal ? newVal.id : null)
+                            }
+                            sx={{ flex: 2 }}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Location"
+                                error={!!errors[`item_${idx}_loc_${locIdx}_location`]}
+                                helperText={errors[`item_${idx}_loc_${locIdx}_location`]}
+                              />
+                            )}
+                          />
+
+                          <TextField
+                            type="number"
+                            value={loc.quantity}
+                            onChange={(e) =>
+                              handleItemLocationChange(idx, locIdx, "quantity", Number(e.target.value))
+                            }
+                            sx={{ width: 80 }}
+                            error={!!errors[`item_${idx}_loc_${locIdx}_quantity`]}
+                            helperText={errors[`item_${idx}_loc_${locIdx}_quantity`]}
+                          />
+                          <IconButton size="small" onClick={() => {
+                            const updated = [...form.items];
+                            updated[idx].item_locations.splice(locIdx, 1);
+                            setForm(f => ({ ...f, items: updated }));
+                          }}><Iconify icon="solar:trash-bin-trash-bold" /></IconButton>
+                        </Box>
+                      ))}
+                      <Button size="small" variant="text" onClick={() => {
+                        const updated = [...form.items];
+                        updated[idx].item_locations.push({ location: null, quantity: 0 });
+                        setForm(f => ({ ...f, items: updated }));
+                        setTimeout(() => {
+                          const key = `item_${idx}_loc_${item.item_locations.length}_location`;
+                          locationRefs.current[key]?.focus();
+                        }, 100);
+                      }}>+ Store</Button>
+                      {errors[`item_${idx}_loc`] && <Typography color="error">{errors[`item_${idx}_loc`]}</Typography>}
+                    </td>
+                    <td style={{ textAlign: 'center', padding: 8, border: '1px solid #ccc' }}>{totalQty}</td>
+                    <td style={{ textAlign: 'center', padding: 8, border: '1px solid #ccc' }}>{rowTotal.toFixed(2)}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>
+                      <Button size="small" onClick={() => {
+                        const updated = [...form.items, { product: null, rate: 0, item_locations: [] }];
+                        setForm(f => ({ ...f, items: updated }));
+                        setTimeout(() => productRefs.current[updated.length - 1]?.focus(), 100);
+                      }}>+ Item</Button>
+                      <Button size="small" color="error" onClick={() => {
+                        const updated = [...form.items];
+                        updated.splice(idx, 1);
+                        setForm(f => ({ ...f, items: updated }));
+                      }} sx={{ ml: 1 }}>- Item</Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Box>
+
+        {/* Summary */}
+        <Typography variant="h6" gutterBottom mt={2}>Summary</Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2, alignItems: 'center' }}>
+          <TextField
+            label="Discount"
+            type="number"
+            value={form.discount}
+            onChange={e => handleFormChange('discount', Number(e.target.value))}
+            sx={{ minWidth: 150 }}
+          />
+          <Box sx={{ border: '1px solid #ccc', borderRadius: 2, p: 1, textAlign: 'center', minWidth: 150, backgroundColor: '#f9f9f9' }}>
+            <Typography variant="subtitle2">Grand Total</Typography>
+            <Typography variant="h6">{grandTotal.toFixed(2)}</Typography>
+          </Box>
+        </Box>
       </DialogContent>
 
       <DialogActions>
         <Button onClick={() => { resetForm(); onClose(); }} disabled={loading}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={loading || !isFormValid}>
+        <Button onClick={handleSubmit} variant="contained" disabled={loading}>
           {loading ? <CircularProgress size={24} /> : 'Submit'}
         </Button>
       </DialogActions>

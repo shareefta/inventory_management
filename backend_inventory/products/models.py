@@ -160,25 +160,6 @@ class PurchasedBy(models.Model):
         return self.name
 
 class Purchase(models.Model):
-    PAYMENT_CHOICES = [
-        ('Cash', 'Cash'),
-        ('Credit', 'Credit'),
-        ('Card', 'Card'),
-        ('Online', 'Online'),
-    ]
-
-    PURCHASED_BY = [
-        ('AZIZIYAH_SHOP', 'AZIZIYAH_SHOP'),
-        ('ALWAB_SHOP', 'ALWAB_SHOP'),
-        ('MAIN_STORE', 'MAIN_STORE'),
-        ('JAMSHEER', 'JAMSHEER'),
-        ('FAWAS', 'FAWAS'),
-        ('IRSHAD', 'IRSHAD'),
-        ('MOOSA', 'MOOSA'),
-        ('FATHIH', 'FATHIH'),
-        ('FIROZ', 'FIROZ'),
-    ]
-
     supplier_name = models.CharField(max_length=100)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
     payment_mode = models.ForeignKey(PaymentMode, on_delete=models.SET_NULL, null=True, blank=True)
@@ -224,19 +205,20 @@ class PurchaseItem(models.Model):
         return self.get_total_quantity() * self.rate
 
     def save(self, *args, **kwargs):
-        if self.product and not self.pk:
+        if self.product:
+            # snapshot latest product info
             self.product_name = self.product.item_name
             self.product_barcode = self.product.unique_id
-            self.product_brand = self.product.brand
-            self.product_variant = self.product.variants
-            self.serial_number = self.product.serial_number
+            self.product_brand = self.product.brand or ''
+            self.product_variant = self.product.variants or ''
+            self.serial_number = self.product.serial_number or ''
+
+            # auto-sync product rate if changed
+            if self.rate and self.rate != self.product.rate:
+                self.product.rate = self.rate
+                self.product.save(update_fields=["rate"])
 
         super().save(*args, **kwargs)
-
-        # Update product rate if needed
-        if self.product and self.rate != self.product.rate:
-            self.product.rate = self.rate
-            self.product.save()
 
 class PurchaseItemLocation(models.Model):
     purchase_item = models.ForeignKey(PurchaseItem, on_delete=models.CASCADE, related_name='item_locations')
@@ -248,26 +230,3 @@ class PurchaseItemLocation(models.Model):
 
     def __str__(self):
         return f"{self.purchase_item.product} @ {self.location} - Qty: {self.quantity}"
-
-    def save(self, *args, **kwargs):
-        is_new = self._state.adding
-
-        # For updates, calculate the difference
-        if not is_new:
-            previous = PurchaseItemLocation.objects.get(pk=self.pk)
-            quantity_diff = self.quantity - previous.quantity
-        else:
-            quantity_diff = self.quantity
-
-        super().save(*args, **kwargs)
-
-        # Update ProductLocation stock
-        product_location, _ = ProductLocation.objects.get_or_create(
-            product=self.purchase_item.product,
-            location=self.location
-        )
-        product_location.quantity += quantity_diff
-        product_location.save()
-
-        # Update total on the Purchase
-        self.purchase_item.purchase.save()

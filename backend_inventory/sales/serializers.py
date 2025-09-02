@@ -159,7 +159,25 @@ class SaleSerializer(serializers.ModelSerializer):
         stock_moves = []
 
         for item in items_data:
-            product_obj = Product.objects.filter(pk=item["product"]).first() if item.get("product") else None
+            product_obj = (
+                Product.objects.filter(pk=item["product"]).first()
+                if item.get("product")
+                else None
+            )
+
+            selling_price = item["price"]
+
+            # --- Update / Create SectionProductPrice if user edited price ---
+            if product_obj:
+                spp, _ = SectionProductPrice.objects.get_or_create(
+                    section=section,
+                    product=product_obj,
+                    defaults={"selling_price": selling_price, "is_manual": True},
+                )
+                if spp.selling_price != selling_price or not spp.is_manual:
+                    spp.selling_price = selling_price
+                    spp.is_manual = True
+                    spp.save(update_fields=["selling_price", "is_manual"])
 
             to_create.append(SaleItem(
                 sale=sale,
@@ -169,7 +187,7 @@ class SaleSerializer(serializers.ModelSerializer):
                 product_brand=item.get("product_brand") or "",
                 product_variant=item.get("product_variant") or "",
                 serial_number=item.get("serial_number") or "",
-                price=item["price"],
+                price=selling_price,
                 quantity=item["quantity"],
                 total=item["total"],
                 location=location,

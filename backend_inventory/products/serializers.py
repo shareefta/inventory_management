@@ -8,6 +8,7 @@ import uuid
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from decimal import Decimal
+from sales.models import SaleItem
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -209,27 +210,33 @@ class PurchaseSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context.get('request')
         items_data = validated_data.pop('items', [])
-
-        purchase = Purchase.objects.create(created_by=request.user, **validated_data)
+        purchase = Purchase.objects.create(created_by=getattr(request, 'user', None), **validated_data)
 
         for item_data in items_data:
             locs_data = item_data.pop('item_locations', [])
 
-            product_id = item_data.get('product')
-            if product_id:
-                product = Product.objects.get(id=product_id)
-                item_data['product'] = product
-                item_data['product_name'] = product.item_name
-                item_data['product_barcode'] = product.unique_id
-                item_data['product_brand'] = product.brand or ''
-                item_data['product_variant'] = product.variants or ''
-                item_data['serial_number'] = product.serial_number or ''
+            product_value = item_data.get('product')
+            if isinstance(product_value, int):
+                item_data['product'] = Product.objects.get(pk=product_value)
 
             item = PurchaseItem.objects.create(purchase=purchase, **item_data)
 
             for loc_data in locs_data:
-                PurchaseItemLocation.objects.create(purchase_item=item, **loc_data)
+                loc_value = loc_data.get('location')
+                location_obj = loc_value if not isinstance(loc_value, int) else Location.objects.get(pk=loc_value)
+                quantity = Decimal(loc_data.get('quantity', 0))
 
+                # Create PurchaseItemLocation
+                PurchaseItemLocation.objects.create(
+                    purchase_item=item,
+                    location=location_obj,
+                    quantity=quantity,
+                )
+
+                # **Update stock and fulfill backorders**
+                self.fulfill_backorders(item.product, location_obj, quantity)
+
+        # Calculate total
         purchase.total_amount = purchase.calculate_total_amount()
         purchase.save(update_fields=["total_amount"])
         return purchase
@@ -239,35 +246,120 @@ class PurchaseSerializer(serializers.ModelSerializer):
         items_data = validated_data.pop('items', None)
 
         if items_data is not None:
-            instance.items.all().delete()
+            existing_items = {item.id: item for item in instance.items.all()}
+
             for item_data in items_data:
                 locs_data = item_data.pop('item_locations', [])
 
-                product_id = item_data.get('product')
-                if product_id:
-                    product = Product.objects.get(id=product_id)
-                    item_data['product'] = product
-                    item_data['product_name'] = product.item_name
-                    item_data['product_barcode'] = product.unique_id
-                    item_data['product_brand'] = product.brand or ''
-                    item_data['product_variant'] = product.variants or ''
-                    item_data['serial_number'] = product.serial_number or ''
+                # Convert product ID to Product instance if necessary
+                product_value = item_data.get('product')
+                if isinstance(product_value, int):
+                    item_data['product'] = Product.objects.get(pk=product_value)
 
-                item = PurchaseItem.objects.create(purchase=instance, **item_data)
+                item_id = item_data.get('id')
+                if item_id and item_id in existing_items:
+                    # Update existing item
+                    item = existing_items.pop(item_id)
+                    for attr, value in item_data.items():
+                        setattr(item, attr, value)
+                    item.save()
+                else:
+                    # Create new item
+                    item = PurchaseItem.objects.create(purchase=instance, **item_data)
 
+                # Handle locations
+                existing_locs = {loc.id: loc for loc in item.item_locations.all()}
                 for loc_data in locs_data:
-                    PurchaseItemLocation.objects.create(purchase_item=item, **loc_data)
+                    loc_id = loc_data.get('id')
+                    loc_value = loc_data.get('location')
+                    location_obj = loc_value if not isinstance(loc_value, int) else Location.objects.get(pk=loc_value)
+                    quantity = Decimal(loc_data.get('quantity', 0))
 
-                if item.rate != item.product.rate:
-                    item.product.rate = item.rate
-                    item.product.save()
+                    if loc_id and loc_id in existing_locs:
+                        loc_instance = existing_locs.pop(loc_id)
+                        old_qty = loc_instance.quantity
+                        if loc_instance.quantity != quantity or loc_instance.location != location_obj:
+                            loc_instance.quantity = quantity
+                            loc_instance.location = location_obj
+                            loc_instance.save()
 
+                            # Update stock difference and fulfill backorders
+                            self.fulfill_backorders(item.product, location_obj, quantity - old_qty)
+                    else:
+                        # New location
+                        PurchaseItemLocation.objects.create(
+                            purchase_item=item,
+                            location=location_obj,
+                            quantity=quantity,
+                        )
+                        self.fulfill_backorders(item.product, location_obj, quantity)
+
+                # Delete leftover locations
+                for loc in existing_locs.values():
+                    # Reduce stock before deleting
+                    product_location, _ = ProductLocation.objects.get_or_create(
+                        product=item.product,
+                        location=loc.location
+                    )
+                    product_location.quantity -= loc.quantity
+                    product_location.save()
+                    loc.delete()
+
+            # Delete leftover items
+            for item in existing_items.values():
+                # Reduce stock for all locations
+                for loc in item.item_locations.all():
+                    product_location, _ = ProductLocation.objects.get_or_create(
+                        product=item.product,
+                        location=loc.location
+                    )
+                    product_location.quantity -= loc.quantity
+                    product_location.save()
+                item.delete()
+
+        # Update Purchase fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.total_amount = instance.calculate_total_amount()
         instance.save()
         return instance
+
+    @staticmethod
+    @transaction.atomic
+    def fulfill_backorders(product, location, added_qty):
+        """
+        Fills backorders for a product at a location when new stock arrives.
+        """
+        product_location, _ = ProductLocation.objects.select_for_update().get_or_create(
+            product=product, location=location, defaults={"quantity": 0}
+        )
+        product_location.quantity += added_qty
+        product_location.save(update_fields=["quantity"])
+        product_location.refresh_from_db()
+
+        available_qty = product_location.quantity
+
+        # Fulfill oldest backorders first
+        backorders = SaleItem.objects.select_for_update().filter(
+            product=product,
+            location=location,
+            backorder_quantity__gt=0
+        ).order_by("sale__sale_datetime")
+
+        for si in backorders:
+            if available_qty <= 0:
+                break
+            fulfill_qty = min(si.backorder_quantity, available_qty)
+            si.quantity += fulfill_qty
+            si.backorder_quantity -= fulfill_qty
+            si.total = si.price * si.quantity
+            si.save(update_fields=["quantity", "backorder_quantity", "total"])
+            available_qty -= fulfill_qty
+
+        product_location.quantity = available_qty
+        product_location.save(update_fields=["quantity"])
+
     
 class PurchaseItemLocationReadSerializer(serializers.ModelSerializer):
     location_name = serializers.CharField(source='location.name', read_only=True)

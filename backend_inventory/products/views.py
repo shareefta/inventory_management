@@ -110,6 +110,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         serializer = PurchaseDetailSerializer(purchase)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'], url_path='suppliers')
+    def supplier_names(self, request):
+        query = request.GET.get('q', '')
+        suppliers = (
+            Purchase.objects
+            .filter(supplier_name__icontains=query)
+            .values_list('supplier_name', flat=True)
+            .distinct()
+        )
+        return Response(list(suppliers))
+
 @api_view(['GET'])
 def scan_barcode(request):
     barcode = request.query_params.get('barcode')
