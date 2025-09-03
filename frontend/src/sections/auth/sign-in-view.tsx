@@ -1,15 +1,18 @@
+import { useSnackbar } from 'notistack';
 import { useState, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import InputAdornment from '@mui/material/InputAdornment';
+import CircularProgress from '@mui/material/CircularProgress'; // ✅ loader
 
 import { useRouter } from 'src/routes/hooks';
+
+import api from 'src/utils/api';
 
 import { useAuthStore } from 'src/store/use-auth-store';
 
@@ -19,53 +22,42 @@ import { Iconify } from 'src/components/iconify';
 
 export function SignInView() {
   const router = useRouter();
+  const { enqueueSnackbar } = useSnackbar();
 
   const setUser = useAuthStore((state) => state.setUser);
 
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false); // ✅ loading state
 
   const handleSignIn = useCallback(async () => {
+    setLoading(true); // start loading
     try {
-      const response = await fetch('https://razaworld.uk/api/token/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: userName, password }),
+      // 🔑 Get JWT tokens
+      const response = await api.post('/api/token/', {
+        username: userName,
+        password,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(error.detail || 'Login failed');
-        return;
-      }
+      const { access, refresh } = response.data;
+      localStorage.setItem('token', access);
+      localStorage.setItem('refresh', refresh);
 
-      const data = await response.json();
-      localStorage.setItem('token', data.access);
-      localStorage.setItem('refresh', data.refresh);
+      enqueueSnackbar('Login successful!', { variant: 'success' });
 
-      // Optional: Fetch user info
-      const meRes = await fetch('https://razaworld.uk/api/accounts/me/', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${data.access}`,
-        },
+      // 👤 Fetch user profile
+      const meRes = await api.get('/api/accounts/me/', {
+        headers: { Authorization: `Bearer ${access}` },
       });
 
-      const user = await meRes.json();
-
-      if (!meRes.ok) {
-        console.error('Failed to fetch user:', user);
-        alert(user.detail || 'Failed to fetch user info.');
-        return;
-      }
-
+      const user = meRes.data;
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
-      console.log(user);
 
-      // router.push('/');
+      enqueueSnackbar(`Welcome, ${user.username || 'User'}!`, { variant: 'info' });
+
+      // 🔀 Redirect based on role
       switch ((user.role || '').toLowerCase()) {
         case 'admin':
           router.push('/');
@@ -81,13 +73,17 @@ export function SignInView() {
           break;
         default:
           router.push('/sign-in');
+          enqueueSnackbar('Unknown role. Please contact admin.', { variant: 'warning' });
       }
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      alert('An error occurred during login.');
+      enqueueSnackbar(error.response?.data?.detail || 'Invalid credentials or server error.', {
+        variant: 'error',
+      });
+    } finally {
+      setLoading(false); // stop loading
     }
-  }, [userName, password, router, setUser]);
+  }, [userName, password, router, setUser, enqueueSnackbar]);
 
   const renderForm = (
     <Box
@@ -142,8 +138,9 @@ export function SignInView() {
         color="inherit"
         variant="contained"
         onClick={handleSignIn}
+        disabled={loading} // ✅ disable while loading
       >
-        Sign in
+        {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign in'}
       </Button>
     </Box>
   );
@@ -160,44 +157,8 @@ export function SignInView() {
         }}
       >
         <Typography variant="h5">Sign in</Typography>
-        {/* <Typography
-          variant="body2"
-          sx={{
-            color: 'text.secondary',
-          }}
-        >
-          Don’t have an account?
-          <Link variant="subtitle2" sx={{ ml: 0.5 }}>
-            Get started
-          </Link>
-        </Typography> */}
       </Box>
       {renderForm}
-      {/* <Divider sx={{ my: 3, '&::before, &::after': { borderTopStyle: 'dashed' } }}>
-        <Typography
-          variant="overline"
-          sx={{ color: 'text.secondary', fontWeight: 'fontWeightMedium' }}
-        >
-          OR
-        </Typography>
-      </Divider>
-      <Box
-        sx={{
-          gap: 1,
-          display: 'flex',
-          justifyContent: 'center',
-        }}
-      >
-        <IconButton color="inherit">
-          <Iconify width={22} icon="socials:google" />
-        </IconButton>
-        <IconButton color="inherit">
-          <Iconify width={22} icon="socials:github" />
-        </IconButton>
-        <IconButton color="inherit">
-          <Iconify width={22} icon="socials:twitter" />
-        </IconButton>
-      </Box> */}
     </>
   );
 }

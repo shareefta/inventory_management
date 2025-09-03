@@ -1,58 +1,39 @@
-import type { CategoryProps } from 'src/sections/category/category-table-row';
+import api from 'src/utils/api';
 
-import axios from 'axios';
+// Define a proper Location type
+export interface LocationProps {
+  id: number;
+  name: string;
+  label?: string; // optional, can be used for display
+}
 
-const BASE_URL = 'https://razaworld.uk/api/products/locations/';
+const BASE_URL = '/api/products/locations/';
 
 // ✅ Get all locations
-export async function getLocations(): Promise<CategoryProps[]> {
-  const token = localStorage.getItem('token');
-  const response = await axios.get(BASE_URL, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+export async function getLocations(): Promise<LocationProps[]> {
+  const response = await api.get(BASE_URL);
   return response.data;
 }
 
 // ✅ Create a new location
-export async function createLocation(data: Omit<CategoryProps, 'id'>): Promise<CategoryProps> {
-  const token = localStorage.getItem('token');
-  const response = await axios.post(BASE_URL, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
+export async function createLocation(data: Omit<LocationProps, 'id'>): Promise<LocationProps> {
+  const response = await api.post(BASE_URL, data);
   window.dispatchEvent(new Event('location-update'));
-
   return response.data;
 }
 
-// ✅ Update a category
-export async function updateLocation(id: number, data: Partial<CategoryProps>): Promise<CategoryProps> {
-  const token = localStorage.getItem('token');
-  const response = await axios.put(`${BASE_URL}${id}/`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
+// ✅ Update a location
+export async function updateLocation(
+  id: number,
+  data: Partial<LocationProps>
+): Promise<LocationProps> {
+  const response = await api.put(`${BASE_URL}${id}/`, data);
   window.dispatchEvent(new Event('location-update'));
-
   return response.data;
 }
 
-// ✅ Delete a category
+// ✅ Delete a location
 export async function deleteLocation(id: number): Promise<void> {
-  const token = localStorage.getItem('token');
-  await axios.delete(`${BASE_URL}${id}/`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
+  await api.delete(`${BASE_URL}${id}/`);
   window.dispatchEvent(new Event('location-update'));
 }

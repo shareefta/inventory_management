@@ -33,8 +33,8 @@ export default function SalesChannelsPage() {
   const [editingName, setEditingName] = useState('');
 
   const fetchChannels = async () => {
-    const res = await getChannels();
-    setChannels(res.data);
+    const channelsData = await getChannels();
+    setChannels(channelsData);
   };
 
   useEffect(() => {

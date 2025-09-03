@@ -63,14 +63,14 @@ const SalesReportPage = () => {
   }, []);
 
   const loadSales = () => {
-    getSales().then((res) => {
-      setSales(res.data);
-      setFilteredSales(res.data);
+    getSales().then((salesData) => {
+      setSales(salesData);
+      setFilteredSales(salesData);
     });
   };
 
   const loadSections = () => {
-    getSections().then((res) => setSections(res.data));
+    getSections().then((fetchedSections) => setSections(fetchedSections));
   };
 
   const sectionMap = useMemo(

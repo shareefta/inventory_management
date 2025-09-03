@@ -1,7 +1,3 @@
-import axios from "axios";
-
-import { getAuthHeaders } from 'src/api/products';
-
 export interface PeriodStats {
   total_deliveries: number;
 }

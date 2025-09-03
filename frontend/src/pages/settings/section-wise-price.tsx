@@ -52,8 +52,8 @@ export default function SectionPricesPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const sectionsRes = await getSections();
-        setSections(sectionsRes.data);
+        const sectionsData = await getSections();
+        setSections(sectionsData);
 
         const productsRes = await getProducts(page, perPage, search);
         setProducts(productsRes.data);

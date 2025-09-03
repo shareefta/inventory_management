@@ -222,7 +222,7 @@ export default function NewPurchaseDialog({ open, onClose, onSuccess }: NewPurch
       const cleanedItems = form.items
         .filter(item => item.product)
         .map(item => ({
-          product: Number(item.product?.id ?? item.product),
+          product_id: Number(item.product!.id),
           rate: item.rate,
           item_locations: item.item_locations
             .filter(loc => loc.location !== null)

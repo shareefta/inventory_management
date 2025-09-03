@@ -1,8 +1,10 @@
-import axios from 'axios';
+import type { ProductProps } from 'src/sections/product/product-table-row';
 
-const BASE_URL_PURCHASES = 'https://razaworld.uk/api/products/purchases/';
-const BASE_URL = 'https://razaworld.uk/api/products/';
+import api from 'src/utils/api';
 
+// ------------------------
+// Types
+// ------------------------
 export type PurchaseItemLocation = {
   id?: number;
   location: number | null;
@@ -11,7 +13,7 @@ export type PurchaseItemLocation = {
 
 export type PurchaseItem = {
   id?: number;
-  product: number;
+  product: ProductProps | null;
   rate: number;
   item_locations: PurchaseItemLocation[];
 };
@@ -39,7 +41,7 @@ export type PurchaseCreatePayload = {
   discount: number;
   total_amount: number;
   items: {
-    product: number;
+    product_id: number;
     rate: number;
     item_locations: {
       location: number;
@@ -59,7 +61,7 @@ export type PurchaseUpdatePayload = {
   total_amount: number;
   items: {
     id?: number;
-    product: number;
+    product_id: number;
     rate: number;
     item_locations: {
       id?: number;
@@ -69,75 +71,6 @@ export type PurchaseUpdatePayload = {
   }[];
 };
 
-// -------------------- Utils --------------------
-const getToken = () => localStorage.getItem("token");
-
-// -------------------- API Calls --------------------
-export async function getPurchases(): Promise<PurchaseProps[]> {
-  const token = getToken();
-  const res = await axios.get(BASE_URL_PURCHASES, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
-}
-
-export async function getPurchase(id: number): Promise<PurchaseProps> {
-  const token = getToken();
-  const res = await axios.get(`${BASE_URL_PURCHASES}${id}/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
-}
-
-export async function createPurchase(
-  data: PurchaseCreatePayload
-): Promise<PurchaseProps> {
-  const token = getToken();
-  const res = await axios.post(`${BASE_URL_PURCHASES}`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-  return res.data;
-}
-
-export async function updatePurchase(
-  id: number,
-  data: PurchaseUpdatePayload
-): Promise<PurchaseProps> {
-  const token = getToken();
-  const res = await axios.put(`${BASE_URL_PURCHASES}${id}/`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-  return res.data;
-}
-
-export async function deletePurchase(id: number) {
-  const token = getToken();
-  return axios.delete(`${BASE_URL_PURCHASES}${id}/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-}
-
-export async function getPurchaseDetails(id: number): Promise<any> {
-  const token = getToken();
-
-  const res = await axios.get(`${BASE_URL_PURCHASES}${id}/details/`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  return res.data;
-}
-
-// ------------------------
-// Types
-// ------------------------
 export type PaymentMode = {
   id?: number;
   name: string;
@@ -149,78 +82,91 @@ export type PurchasedBy = {
 };
 
 // ------------------------
+// API Endpoints
+// ------------------------
+const BASE_URL_PURCHASES = '/api/products/purchases/';
+const BASE_URL_PRODUCTS = '/api/products/';
+
+// ------------------------
+// Purchases APIs
+// ------------------------
+export async function getPurchases(): Promise<PurchaseProps[]> {
+  const res = await api.get(BASE_URL_PURCHASES);
+  return res.data;
+}
+
+export async function getPurchase(id: number): Promise<PurchaseProps> {
+  const res = await api.get(`${BASE_URL_PURCHASES}${id}/`);
+  return res.data;
+}
+
+export async function createPurchase(data: PurchaseCreatePayload): Promise<PurchaseProps> {
+  const res = await api.post(BASE_URL_PURCHASES, data);
+  return res.data;
+}
+
+export async function updatePurchase(id: number, data: PurchaseUpdatePayload): Promise<PurchaseProps> {
+  const res = await api.put(`${BASE_URL_PURCHASES}${id}/`, data);
+  return res.data;
+}
+
+export async function deletePurchase(id: number) {
+  return api.delete(`${BASE_URL_PURCHASES}${id}/`);
+}
+
+export async function getPurchaseDetails(id: number): Promise<any> {
+  const res = await api.get(`${BASE_URL_PURCHASES}${id}/details/`);
+  return res.data;
+}
+
+// ------------------------
 // PaymentMode APIs
 // ------------------------
 export async function getPaymentModes(): Promise<PaymentMode[]> {
-  const token = getToken();
-  const res = await axios.get(`${BASE_URL}payment-modes/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await api.get(`${BASE_URL_PRODUCTS}payment-modes/`);
   return res.data;
 }
 
 export async function createPaymentMode(data: PaymentMode): Promise<PaymentMode> {
-  const token = getToken();
-  const res = await axios.post(`${BASE_URL}payment-modes/`, data, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
+  const res = await api.post(`${BASE_URL_PRODUCTS}payment-modes/`, data);
   return res.data;
 }
 
 export async function updatePaymentMode(id: number, data: PaymentMode): Promise<PaymentMode> {
-  const token = getToken();
-  const res = await axios.put(`${BASE_URL}payment-modes/${id}/`, data, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
+  const res = await api.put(`${BASE_URL_PRODUCTS}payment-modes/${id}/`, data);
   return res.data;
 }
 
 export async function deletePaymentMode(id: number) {
-  const token = getToken();
-  return axios.delete(`${BASE_URL}payment-modes/${id}/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  return api.delete(`${BASE_URL_PRODUCTS}payment-modes/${id}/`);
 }
 
 // ------------------------
 // PurchasedBy APIs
 // ------------------------
 export async function getPurchasedBys(): Promise<PurchasedBy[]> {
-  const token = getToken();
-  const res = await axios.get(`${BASE_URL}purchased-by/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await api.get(`${BASE_URL_PRODUCTS}purchased-by/`);
   return res.data;
 }
 
 export async function createPurchasedBy(data: PurchasedBy): Promise<PurchasedBy> {
-  const token = getToken();
-  const res = await axios.post(`${BASE_URL}purchased-by/`, data, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
+  const res = await api.post(`${BASE_URL_PRODUCTS}purchased-by/`, data);
   return res.data;
 }
 
 export async function updatePurchasedBy(id: number, data: PurchasedBy): Promise<PurchasedBy> {
-  const token = getToken();
-  const res = await axios.put(`${BASE_URL}purchased-by/${id}/`, data, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
+  const res = await api.put(`${BASE_URL_PRODUCTS}purchased-by/${id}/`, data);
   return res.data;
 }
 
 export async function deletePurchasedBy(id: number) {
-  const token = getToken();
-  return axios.delete(`${BASE_URL}purchased-by/${id}/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  return api.delete(`${BASE_URL_PRODUCTS}purchased-by/${id}/`);
 }
 
-// Fetch distinct supplier names
+// ------------------------
+// Suppliers API
+// ------------------------
 export async function getSuppliers(): Promise<string[]> {
-  const token = getToken();
-  const res = await axios.get(`${BASE_URL_PURCHASES}suppliers/`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await api.get(`${BASE_URL_PURCHASES}suppliers/`);
   return res.data;
 }

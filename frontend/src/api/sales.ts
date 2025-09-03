@@ -1,8 +1,8 @@
-import axios from "axios";
+import api from 'src/utils/api';
 
-import { getAuthHeaders } from 'src/api/products';
-
-// Interfaces
+// ------------------------
+// Types
+// ------------------------
 export interface SalesChannel {
   id: number;
   name: string;
@@ -14,8 +14,6 @@ export interface SalesSection {
   channel: SalesChannel;
   channel_id?: number;
   location?: number;
-
-  // ✅ new fields
   building_no?: string;
   street_no?: string;
   zone_no?: string;
@@ -28,8 +26,8 @@ export interface SectionProductPrice {
   id: number;
   section: number;
   product: number;
-  price: string;      // this corresponds to final_price
-  is_manual: boolean; // whether the user has manually overridden the price
+  price: string;      // final price
+  is_manual: boolean; // manually overridden?
 }
 
 export interface SaleItem {
@@ -77,39 +75,26 @@ export interface SalesReturn {
   items: SalesReturnItem[];
 }
 
-// --- Axios instance ---
-const api = axios.create({
-  baseURL: "https://razaworld.uk/api/sales/",
-});
+// ------------------------
+// Base URL
+// ------------------------
+const BASE_URL = '/api/sales/';
 
-// Interceptor: add token to headers
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token && config.headers) {
-    // Option 1: Using set() if Axios 1.x
-    if (typeof config.headers.set === "function") {
-      config.headers.set("Authorization", `Bearer ${token}`);
-    } else {
-      // fallback for older versions or TS type issues
-      (config.headers as any)["Authorization"] = `Bearer ${token}`;
-    }
-  }
-  return config;
-});
+// ------------------------
+// Channels APIs
+// ------------------------
+export const getChannels = () => api.get<SalesChannel[]>(`${BASE_URL}channels/`).then(res => res.data);
+export const createChannel = (name: string) => api.post(`${BASE_URL}channels/`, { name }).then(res => res.data);
+export const updateChannel = (id: number, name: string) => api.put(`${BASE_URL}channels/${id}/`, { name }).then(res => res.data);
+export const deleteChannel = (id: number) => api.delete(`${BASE_URL}channels/${id}/`).then(res => res.data);
 
-// --- Channels ---
-export const getChannels = () => api.get<SalesChannel[]>("channels/");
-export const createChannel = (name: string) => api.post("channels/", { name });
-export const updateChannel = (id: number, name: string) => api.put(`channels/${id}/`, { name });
-export const deleteChannel = (id: number) => api.delete(`channels/${id}/`);
-
-// --- Sections ---
+// ------------------------
+// Sections APIs
+// ------------------------
 export const getSections = (channelId?: number) =>
-  api.get<SalesSection[]>("sections/", {
-    params: channelId ? { channel_id: channelId } : {},
-  });
+  api.get<SalesSection[]>(`${BASE_URL}sections/`, { params: channelId ? { channel_id: channelId } : {} })
+     .then(res => res.data);
 
-// include all section fields except `id` (backend generates it)
 export type SectionPayload = {
   name: string;
   channel_id: number;
@@ -119,90 +104,70 @@ export type SectionPayload = {
   zone_no?: string;
   place?: string;
   short_name?: string;
-  logo?: File | string | null; // File when uploading, string when updating
+  logo?: File | string | null;
 };
 
 export const createSection = (section: SectionPayload) => {
   const formData = new FormData();
   Object.entries(section).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      formData.append(key, value as any);
-    }
+    if (value !== undefined && value !== null) formData.append(key, value as any);
   });
-  return api.post<SalesSection>("sections/", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  return api.post(`${BASE_URL}sections/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+            .then(res => res.data);
 };
 
 export const updateSection = (id: number, section: SectionPayload) => {
   const formData = new FormData();
   Object.entries(section).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      formData.append(key, value as any);
-    }
+    if (value !== undefined && value !== null) formData.append(key, value as any);
   });
-  return api.put<SalesSection>(`sections/${id}/`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  return api.put(`${BASE_URL}sections/${id}/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+            .then(res => res.data);
 };
 
-export const deleteSection = (id: number) =>
-  api.delete(`sections/${id}/`);
+export const deleteSection = (id: number) => api.delete(`${BASE_URL}sections/${id}/`).then(res => res.data);
 
-// --- Section Product Prices ---
+// ------------------------
+// Section Prices APIs
+// ------------------------
 export const getSectionPrices = (sectionId: number) =>
-  api.get<SectionProductPrice[]>("prices/", { params: { section_id: sectionId } })
-    .then(res => res.data);
+  api.get<SectionProductPrice[]>(`${BASE_URL}prices/`, { params: { section_id: sectionId } })
+     .then(res => res.data);
 
-export const bulkSetSectionPrices = (
-  sections: number | number[],
-  items: { product: number; price?: string | null }[]
-) =>
-  api.post("prices/bulk-set/", { sections, items });
+export const bulkSetSectionPrices = (sections: number | number[], items: { product: number; price?: string | null }[]) =>
+  api.post(`${BASE_URL}prices/bulk-set/`, { sections, items }).then(res => res.data);
 
-// --- Sales ---
-// in sales.ts
-export const getSale = (id: number) => api.get<Sale>(`sales/${id}/`).then(res => res.data);
-export const getSales = () => api.get<Sale[]>("sales/");
-export const createSale = (sale: Partial<Sale>) => api.post("sales/", sale);
-export const updateSale = (id: number, sale: Partial<Sale>) => api.put(`sales/${id}/`, sale);
-export const deleteSale = (id: number) => api.delete(`sales/${id}/`);
+// ------------------------
+// Sales APIs
+// ------------------------
+export const getSale = (id: number) => api.get<Sale>(`${BASE_URL}sales/${id}/`).then(res => res.data);
+export const getSales = () => api.get<Sale[]>(`${BASE_URL}sales/`).then(res => res.data);
+export const createSale = (sale: Partial<Sale>) => api.post(`${BASE_URL}sales/`, sale).then(res => res.data);
+export const updateSale = (id: number, sale: Partial<Sale>) => api.put(`${BASE_URL}sales/${id}/`, sale).then(res => res.data);
+export const deleteSale = (id: number) => api.delete(`${BASE_URL}sales/${id}/`).then(res => res.data);
 
-// Fetch all returns (optionally filter by saleId or other fields)
+// ------------------------
+// Sales Returns APIs
+// ------------------------
 export const getSalesReturns = (filters?: {
   sale?: number;
   invoice?: string;
   customer?: string;
   dateFrom?: string;
   dateTo?: string;
-}) =>
-  api
-    .get<SalesReturn[]>("sales-returns/", { params: filters })
-    .then(res => res.data);
+}) => api.get<SalesReturn[]>(`${BASE_URL}sales-returns/`, { params: filters }).then(res => res.data);
 
-// Fetch single return
-export const getSalesReturn = (id: number) =>
-  api.get<SalesReturn>(`sales-returns/${id}/`).then(res => res.data);
-
-// Create new sales return
-export const createSalesReturn = (data: {
-  sale: number;
-  customer?: number;
-  refund_mode?: "cash" | "card" | "online" | "wallet";
-  items_write: SalesReturnItem[];
-}) => api.post("sales-returns/", data);
-
-// Update sales return (rarely needed, mostly for admin corrections)
+export const getSalesReturn = (id: number) => api.get<SalesReturn>(`${BASE_URL}sales-returns/${id}/`).then(res => res.data);
+export const createSalesReturn = (data: { sale: number; customer?: number; refund_mode?: "cash"|"card"|"online"|"wallet"; items_write: SalesReturnItem[] }) =>
+  api.post(`${BASE_URL}sales-returns/`, data).then(res => res.data);
 export const updateSalesReturn = (id: number, data: Partial<SalesReturn>) =>
-  api.put(`sales-returns/${id}/`, data);
+  api.put(`${BASE_URL}sales-returns/${id}/`, data).then(res => res.data);
+export const deleteSalesReturn = (id: number) => api.delete(`${BASE_URL}sales-returns/${id}/`).then(res => res.data);
 
-// Delete a sales return (admin only)
-export const deleteSalesReturn = (id: number) => api.delete(`sales-returns/${id}/`);
-
-export interface PeriodStats {
-  total_amount: number; // net of returns
-}
-
+// ------------------------
+// Sales Stats API
+// ------------------------
+export interface PeriodStats { total_amount: number; }
 export interface SalesStats {
   sales_total: number;
   sales_after_return: number;
@@ -216,32 +181,10 @@ export interface SalesStats {
   sales_return_today: number;
   sales_return_month: number;
   sales_return_fy: number;
-  today?: PeriodStats;          // net
-  current_month?: PeriodStats;  // net
-  financial_year?: PeriodStats; // net
-  month_totals: number[];       // net monthly totals
+  today?: PeriodStats;
+  current_month?: PeriodStats;
+  financial_year?: PeriodStats;
+  month_totals: number[];
 }
 
-// ---- GET SALES STATS ----
-export async function getSalesStats(): Promise<SalesStats> {
-  try {
-    const response = await axios.get(
-      'https://razaworld.uk/api/sales/sales-stats/',
-      { headers: getAuthHeaders() }
-    );
-
-    const data = response.data;
-
-    return {
-      ...data,
-      // Use net totals (after subtracting returns)
-      today: { total_amount: data.sales_today_after_return },
-      current_month: { total_amount: data.sales_month_after_return },
-      financial_year: { total_amount: data.sales_fy_after_return },
-      month_totals: data.month_totals, // already net from backend
-    };
-  } catch (error) {
-    console.error('Failed to fetch sales stats:', error);
-    throw error;
-  }
-}
+export const getSalesStats = () => api.get<SalesStats>(`${BASE_URL}sales-stats/`).then(res => res.data);

@@ -78,7 +78,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='products')
     locations = models.ManyToManyField(Location, through='ProductLocation')
     
-    rate = models.DecimalField(max_digits=10, decimal_places=2)
+    rate = models.DecimalField(max_digits=14, decimal_places=6)
 
     active = models.BooleanField(default=True)
 
@@ -185,7 +185,7 @@ class Purchase(models.Model):
 class PurchaseItem(models.Model):
     purchase = models.ForeignKey(Purchase, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, blank=True, null=True)
-    rate = models.DecimalField(max_digits=10, decimal_places=2)
+    rate = models.DecimalField(max_digits=14, decimal_places=6)
     fulfilled_backorder = models.PositiveIntegerField(default=0)
 
     # Snapshot fields

@@ -72,8 +72,8 @@ export default function SalesSectionsPage() {
   // Fetchers
   const fetchSections = async () => {
     try {
-      const res = await getSections();
-      setSections(res.data);
+      const sectionsData = await getSections();
+      setSections(sectionsData);
     } catch {
       enqueueSnackbar("Failed to fetch sections", { variant: "error" });
     }
@@ -81,8 +81,8 @@ export default function SalesSectionsPage() {
 
   const fetchChannels = async () => {
     try {
-      const res = await getChannels();
-      setChannels(res.data);
+      const channelsData = await getChannels();
+      setChannels(channelsData);
     } catch {
       enqueueSnackbar("Failed to fetch channels", { variant: "error" });
     }

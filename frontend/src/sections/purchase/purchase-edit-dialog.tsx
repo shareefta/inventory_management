@@ -7,7 +7,7 @@ import {
   CircularProgress, Box, IconButton, Typography, Autocomplete, Snackbar, Alert
 } from '@mui/material';
 
-import { getProducts, getLocations } from 'src/api/products';
+import { getProducts, getProduct, getLocations } from 'src/api/products';
 import { PurchaseProps, updatePurchase, getPurchase, PaymentMode, PurchasedBy, PurchaseUpdatePayload, getPaymentModes, getPurchasedBys, getSuppliers } from 'src/api/purchases';
 
 import { Iconify } from 'src/components/iconify';
@@ -61,6 +61,7 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
     items: [],
   });
 
+  // Fetch suppliers
   useEffect(() => {
     if (!open) return;
 
@@ -79,67 +80,87 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
     fetchSuppliers();
   }, [open]);
 
-  // Load initial data and purchase
+  // Load initial data
   useEffect(() => {
-    if (!open) return;
+  if (!open) return;
 
-    const fetchData = async () => {
-      setLoadingData(true);
+  const fetchData = async () => {
+    setLoadingData(true);
 
-      try {
-        const [prodsRes, locsRes, paymentModesRes, purchasedBysRes, purchase] = await Promise.all([
-          getProducts(),
-          getLocations(),
-          getPaymentModes(),
-          getPurchasedBys(),
-          getPurchase(purchaseId),
-        ]);
+    try {
+      // Fetch first page of products (for autocomplete) + other data + purchase
+      const [prodsRes, locsRes, paymentModesRes, purchasedBysRes, purchase] = await Promise.all([
+        getProducts(1, 25),
+        getLocations(),
+        getPaymentModes(),
+        getPurchasedBys(),
+        getPurchase(purchaseId),
+      ]);
 
-        const productsData = prodsRes.data || prodsRes;
-        const locationsData: Location[] = locsRes || [];
-        const paymentModesData: PaymentMode[] = paymentModesRes || [];
-        const purchasedBysData: PurchasedBy[] = purchasedBysRes || [];
+      let productsData: ProductProps[] = prodsRes.data;
+      const locationsData: Location[] = locsRes;
+      const paymentModesData: PaymentMode[] = paymentModesRes;
+      const purchasedBysData: PurchasedBy[] = purchasedBysRes;
 
-        setProducts(productsData);
-        setLocations(locationsData);
-        setPaymentModes(paymentModesData);
-        setPurchasedBys(purchasedBysData);
+      // Extract product IDs from purchase items
+      const missingProductIds = purchase.items
+        .map(i => i.product?.id)
+        .filter((id): id is string => id !== undefined)  // keep only defined IDs
+        .map(id => Number(id))                           // convert to number for getProduct
+        .filter(id => !productsData.some(p => Number(p.id) === id));
 
-        // Map purchase items using freshly fetched arrays
-        const mappedItems: PurchaseFormItem[] = purchase.items.map((item: any) => ({
-          id: item.id,
-          product: productsData.find(p => p.id === item.product) || null,
-          rate: item.rate,
-          item_locations: item.item_locations.map((loc: any) => ({
-            id: loc.id,
-            location: locationsData.find(l => l.id === loc.location) || null,
-            quantity: loc.quantity,
-          })),
-        }));
-
-        // Map current payment_mode / purchased_by to options
-      const selectedPaymentMode = paymentModesData.find(pm => pm.id === purchase.payment_mode?.id) || null;
-      const selectedPurchasedBy = purchasedBysData.find(pb => pb.id === purchase.purchased_by?.id) || null;
-
-        setForm({
-          supplier_name: purchase.supplier_name,
-          invoice_number: purchase.invoice_number,
-          purchase_date: purchase.purchase_date,
-          payment_mode: selectedPaymentMode,
-          purchased_by: selectedPurchasedBy,
-          discount: purchase.discount,
-          invoice_image: null,
-          items: mappedItems,
-        });
-      } catch (error) {
-        console.error('Failed to fetch purchase data:', error);
-      } finally {
-        setLoadingData(false);
+      // Fetch missing products individually
+      if (missingProductIds.length > 0) {
+        const fetchedMissing = await Promise.all(
+          missingProductIds.map(id => getProduct(id))
+        );
+        productsData = [...productsData, ...fetchedMissing].filter(
+          (v, i, a) => a.findIndex(x => x.id === v.id) === i
+        );
       }
-    };
 
-    fetchData();
-  }, [open, purchaseId]);
+      setProducts(productsData);
+      setLocations(locationsData);
+      setPaymentModes(paymentModesData);
+      setPurchasedBys(purchasedBysData);
+
+      // Map purchase items to form
+      const mappedItems: PurchaseFormItem[] = purchase.items.map(item => {
+        const productObj = productsData.find(p => Number(p.id) === Number(item.product?.id)) || null;
+
+        const mappedLocations: PurchaseFormItemLocation[] = item.item_locations.map(loc => {
+          const locObj = locationsData.find(l => Number(l.id) === Number(loc.location)) || null;
+          return { id: loc.id, location: locObj, quantity: Number(loc.quantity) };
+        });
+
+        return {
+          id: item.id,
+          product: productObj,
+          rate: Number(item.rate),
+          item_locations: mappedLocations,
+        };
+      });
+
+      setForm({
+        supplier_name: purchase.supplier_name,
+        invoice_number: purchase.invoice_number,
+        purchase_date: purchase.purchase_date,
+        payment_mode: paymentModesData.find(pm => pm.id === purchase.payment_mode?.id) || null,
+        purchased_by: purchasedBysData.find(pb => pb.id === purchase.purchased_by?.id) || null,
+        discount: Number(purchase.discount),
+        invoice_image: null,
+        items: mappedItems,
+      });
+
+    } catch (error) {
+      console.error('Failed to fetch purchase data:', error);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  fetchData();
+}, [open, purchaseId]);
 
   const resetForm = () => setForm({ supplier_name: '', invoice_number: '', purchase_date: '', payment_mode: null, purchased_by: null, discount: 0, invoice_image: null, items: [] });
 
@@ -188,28 +209,26 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
     setLoading(true);
 
     try {
-      // Filter and map items safely
       const cleanedItems: PurchaseUpdatePayload['items'] = form.items
-      .filter(item => item.product && item.item_locations.length > 0)
-      .map(item => {
-        const productId = (item.product as ProductProps).id;
+        .filter(item => item.product && item.item_locations.length > 0)
+        .map(item => {
+          const productId = item.product!.id;
+          const cleanedLocations = item.item_locations
+            .filter(loc => loc.location && loc.quantity > 0)
+            .map(loc => ({
+              id: loc.id ?? undefined,
+              location: loc.location!.id,
+              quantity: Number(loc.quantity),
+            }));
 
-        const cleanedLocations = item.item_locations
-          .filter(loc => loc.location && loc.quantity > 0)
-          .map(loc => ({
-            id: loc.id ?? undefined, // preserve id if exists
-            location: typeof loc.location === 'object' ? (loc.location as Location).id : loc.location,
-            quantity: Number(loc.quantity),
-          }));
-
-        return {
-          id: item.id ?? undefined, // preserve item id if exists
-          product: Number(productId),
-          rate: Number(item.rate) || 0,
-          item_locations: cleanedLocations,
-        };
-      })
-      .filter(item => item.item_locations.length > 0);
+          return {
+            id: item.id ?? undefined,
+            product_id: Number(productId),
+            rate: Number(item.rate) || 0,
+            item_locations: cleanedLocations,
+          };
+        })
+        .filter(item => item.item_locations.length > 0);
 
       if (cleanedItems.length === 0) {
         setSnackbar({ open: true, message: 'Please add at least one product with valid stock', severity: 'error' });
@@ -247,7 +266,7 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+      <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
         <DialogTitle>Edit Purchase</DialogTitle>
         <DialogContent dividers>
           {loadingData ? <Box textAlign="center" py={4}><CircularProgress /></Box> : (
@@ -255,7 +274,7 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
               {/* Purchase Details */}
               <Typography variant="h6" gutterBottom>Purchase Details</Typography>
               <Grid container spacing={1} mb={3}>
-                <Grid size={{ xs: 12, md: 2 }} >
+                <Grid size={{ xs: 12, md: 2 }}>
                   <TextField label="Purchase Date" type="date" fullWidth InputLabelProps={{ shrink: true }} value={form.purchase_date} onChange={e => handleFormChange('purchase_date', e.target.value)} />
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
@@ -284,10 +303,10 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
                     )}
                   />
                 </Grid>
-                <Grid size={{ xs: 12, md: 2 }} >
+                <Grid size={{ xs: 12, md: 2 }}>
                   <TextField label="Invoice Number" fullWidth value={form.invoice_number} onChange={e => handleFormChange('invoice_number', e.target.value)} />
                 </Grid>
-                <Grid size={{ xs: 12, md: 2 }} >
+                <Grid size={{ xs: 12, md: 2 }}>
                   <Autocomplete
                     options={paymentModes}
                     getOptionLabel={o => o.name}
@@ -296,7 +315,7 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
                     renderInput={params => <TextField {...params} label="Payment Mode" fullWidth />}
                   />
                 </Grid>
-                <Grid size={{ xs: 12, md: 2 }} >
+                <Grid size={{ xs: 12, md: 2 }}>
                   <Autocomplete
                     options={purchasedBys}
                     getOptionLabel={o => o.name}
@@ -315,24 +334,37 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
 
                 return (
                   <Grid container spacing={1} key={index} alignItems="flex-start">
-                    <Grid size={{ xs: 12, md: 9 }} >
+                    <Grid size={{ xs: 12, md: 10 }}>
                       <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                        <Grid size={{ xs: 12, md: 4 }} >
+                        {/* Serial Number Column */}
+                        <Grid size={{ xs: 12, md: 1 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Typography fontWeight="bold">{index + 1}</Typography>
+                        </Grid>
+                        
+                        <Grid size={{ xs: 12, md: 6 }}>
                           <Autocomplete
                             options={products}
-                            getOptionLabel={p => p.itemName}
+                            getOptionLabel={(p) => p?.itemName || ''}
                             value={item.product}
                             onChange={(_, val) => handleItemChange(index, 'product', val)}
-                            renderInput={params => <TextField {...params} label="Product" fullWidth inputRef={el => { productRefs.current[index] = el; }} />}
+                            isOptionEqualToValue={(option, value) => option.id === value?.id}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Product"
+                                fullWidth
+                                inputRef={el => { productRefs.current[index] = el; }}
+                              />
+                            )}
                           />
                         </Grid>
 
-                        <Grid size={{ xs: 12, md: 1.5 }}>
+                        <Grid size={{ xs: 12, md: 1 }}>
                           <TextField label="Rate" type="number" fullWidth value={item.rate} onChange={e => handleItemChange(index, 'rate', Number(e.target.value))} onWheel={e => (e.target as HTMLElement).blur()} />
                         </Grid>
 
                         {item.item_locations.map((loc, locIndex) => (
-                          <Grid size={{ xs: 12, md: 4 }} key={locIndex} sx={{ display: 'flex', gap: 1 }}>
+                          <Grid size={{ xs: 12, md: 3 }} key={locIndex} sx={{ display: 'flex', gap: 1 }}>
                             <Autocomplete
                               options={locations.filter(l => !item.item_locations.some((il, i) => il.location?.id === l.id && i !== locIndex))}
                               getOptionLabel={l => l.name}
@@ -351,40 +383,26 @@ export default function PurchaseEditDialog({ open, onClose, onSuccess, purchaseI
                           </Grid>
                         ))}
 
-                        <Button
-                          variant="text"
-                          size="small"
-                          onClick={() => {
-                            setForm(prev => ({
-                              ...prev,
-                              items: prev.items.map((itm, i) =>
-                                i === index
-                                  ? {
-                                      ...itm,
-                                      item_locations: [
-                                        ...itm.item_locations,
-                                        { id: undefined, location: null, quantity: 0 }, // id undefined for new rows
-                                      ],
-                                    }
-                                  : itm
-                              ),
-                            }));
+                        <Button variant="text" size="small" onClick={() => {
+                          setForm(prev => ({
+                            ...prev,
+                            items: prev.items.map((itm, i) =>
+                              i === index ? { ...itm, item_locations: [...itm.item_locations, { id: undefined, location: null, quantity: 0 }] } : itm
+                            ),
+                          }));
 
-                            // Correct focus: new row is last index
-                            setTimeout(() => {
-                              const newLocIndex = form.items[index].item_locations.length;
-                              locationRefs.current[`${index}-${newLocIndex}`]?.focus();
-                            }, 100);
-                          }}
-                        >
-                          + Stock
-                        </Button>
+                          // Focus new location input
+                          setTimeout(() => {
+                            const newLocIndex = form.items[index].item_locations.length;
+                            locationRefs.current[`${index}-${newLocIndex}`]?.focus();
+                          }, 100);
+                        }}>+ Stock</Button>
                       </Grid>
                     </Grid>
 
-                    <Grid size={{ xs: 12, md: 3 }}>
+                    <Grid size={{ xs: 12, md: 2 }}>
                       <Grid container spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                        <Grid size={{ xs: 6, md: 8 }} >
+                        <Grid size={{ xs: 6, md: 8 }}>
                           <Box sx={{ border: '1px solid #ccc', borderRadius: 2, p: 1, textAlign: 'center', bgcolor: '#f9f9f9' }}>
                             <Typography variant="subtitle2">Product Total</Typography>
                             <Typography sx={{ minWidth: 150 }} fontWeight="bold">{rowTotal.toFixed(2)}</Typography>

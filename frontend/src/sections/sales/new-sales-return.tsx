@@ -53,7 +53,7 @@ export default function NewSalesReturnPage() {
     try {
       setLoading(true);
       const response = await getSales();
-      const sales = response.data;
+      const sales = response;
       const foundSale = sales.find(
         (s) =>
           s.invoice_number === searchInput.trim() ||

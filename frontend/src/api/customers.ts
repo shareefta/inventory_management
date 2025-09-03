@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "src/utils/api";
 
 export interface CustomerProps {
   id: number;
@@ -8,14 +8,7 @@ export interface CustomerProps {
   label: string;
 }
 
-const BASE_URL = "https://razaworld.uk/api/customers/customers_list/";
-
-export function getAuthHeaders() {
-  const token = localStorage.getItem("token");
-  if (!token) throw new Error("No auth token");
-
-  return { Authorization: `Bearer ${token}` };
-}
+const BASE_URL = "/api/customers/customers_list/";
 
 /**
  * Fetch customers from backend.
@@ -23,8 +16,7 @@ export function getAuthHeaders() {
  * @param limit max results (default 50)
  */
 export async function getCustomers(search = "", limit = 50): Promise<CustomerProps[]> {
-  const response = await axios.get(BASE_URL, {
-    headers: getAuthHeaders(),
+  const response = await api.get(BASE_URL, {
     params: { search, limit },
   });
 

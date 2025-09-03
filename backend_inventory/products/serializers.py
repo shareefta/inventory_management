@@ -142,12 +142,16 @@ class PurchaseItemLocationSerializer(serializers.ModelSerializer):
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
     item_locations = PurchaseItemLocationSerializer(many=True)
+    rate = serializers.DecimalField(max_digits=14, decimal_places=6)
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), write_only=True, source='product')
 
     class Meta:
         model = PurchaseItem
         fields = [
             'id',
             'product',
+            'product_id',
             'rate',
             'product_name',
             'product_barcode',

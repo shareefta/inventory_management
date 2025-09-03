@@ -1,3 +1,4 @@
+import type { CustomerProps } from "src/api/customers";
 import type { InvoicePrintProps } from "src/sections/sales/sales-invoice";
 import type { ProductProps } from 'src/sections/product/product-table-row';
 
@@ -16,6 +17,7 @@ import {
   TableCell, TableBody, Fab, IconButton
 } from "@mui/material";
 
+import { getCustomers } from "src/api/customers";
 import { useAuthStore } from "src/store/use-auth-store";
 import { getProducts, getProductByBarcode } from "src/api/products";
 import { getSections, Sale, createSale, SalesSection, getSectionPrices } from "src/api/sales";
@@ -69,6 +71,15 @@ export default function SalesPage() {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // --- Customer states ---
+  const [customerInput, setCustomerInput] = useState(""); // text shown in the name input
+  const [customerOptions, setCustomerOptions] = useState<CustomerProps[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerProps | null>(null);
+
+  // Debounce ref for mobile lookup
+  const mobileLookupTimeout = useRef<number | null>(null);
+
   // Debounced server-side search
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -85,6 +96,25 @@ export default function SalesPage() {
 
     return () => clearTimeout(handler);
   }, [inputValue]);
+
+  // Debounced customers search (for Autocomplete suggestions)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const q = customerInput.trim();
+      if (!q) {
+        setCustomerOptions([]);
+        return;
+      }
+
+      setLoadingCustomers(true);
+      getCustomers(q, 50)
+        .then(items => setCustomerOptions(items))
+        .catch(() => setCustomerOptions([]))
+        .finally(() => setLoadingCustomers(false));
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [customerInput]);
 
   useEffect(() => {
     if (!selectedSection || !activeSale) return;
@@ -143,11 +173,112 @@ export default function SalesPage() {
     }
   }, [salesInstances, activeSaleId]);
 
-  const activeSale = salesInstances.find(s => s?.id === activeSaleId) ?? null;  
+  const activeSale = salesInstances.find(s => s?.id === activeSaleId) ?? null;
+
+  // --- Initialize customerInput when activeSale changes ---
+useEffect(() => {
+  if (!activeSale) {
+    setCustomerInput("");
+    setSelectedCustomer(null);
+    return;
+  }
+
+  // Only set input if it's empty (don't overwrite typed name)
+  setCustomerInput(prev => prev?.trim() ? prev : (activeSale.customerName || ""));
+  setSelectedCustomer(null);
+}, [activeSale]);
+
+// --- Fetch customer options for Autocomplete ---
+useEffect(() => {
+  const handler = setTimeout(() => {
+    const q = customerInput.trim();
+    if (!q) {
+      setCustomerOptions([]);
+      return;
+    }
+
+    setLoadingCustomers(true);
+    getCustomers(q, 50)
+      .then(items => setCustomerOptions(items))
+      .catch(() => setCustomerOptions([]))
+      .finally(() => setLoadingCustomers(false));
+  }, 300);
+
+  return () => clearTimeout(handler);
+}, [customerInput]);
+
+// --- Handle Name input change ---
+const handleCustomerInputChange = (newValue: string) => {
+  setCustomerInput(newValue);
+  setSelectedCustomer(null); // Free-text input invalidates selectedCustomer
+  if (!activeSale) return;
+
+  setSalesInstances(prev =>
+    prev.map(s => s.id === activeSaleId
+      ? { ...s, customerName: newValue }
+      : s
+    )
+  );
+};
+
+// --- Handle Mobile input change ---
+const handleCustomerMobileChange = (val: string) => {
+  if (!activeSale) return;
+
+  // Update only mobile in sale
+  setSalesInstances(prev =>
+    prev.map(s => s.id === activeSaleId
+      ? { ...s, customerMobile: val }
+      : s
+    )
+  );
+
+  // Debounced mobile lookup
+  if (mobileLookupTimeout.current) window.clearTimeout(mobileLookupTimeout.current);
+  mobileLookupTimeout.current = window.setTimeout(async () => {
+    try {
+      const q = val.trim();
+      if (!q || q.length < 3) return;
+
+      const items = await getCustomers(q, 10);
+      const exact = items.find(c => c.mobile === q);
+
+      if (exact) {
+        setSelectedCustomer(exact);
+
+        // Only overwrite Name if empty
+        setSalesInstances(prev =>
+          prev.map(s =>
+            s.id === activeSaleId
+              ? {
+                  ...s,
+                  customerMobile: exact.mobile,
+                  customerName: s.customerName?.trim() ? s.customerName : (exact.name ?? "")
+                }
+              : s
+          )
+        );
+
+        setCustomerInput(prev => prev?.trim() ? prev : (exact.name ?? ""));
+      } else {
+        // No match, keep typed name intact
+        setSelectedCustomer(prev => (prev && prev.mobile === q ? prev : null));
+      }
+    } catch {
+      // ignore errors
+    }
+  }, 400);
+};
+
+// --- Options including selectedCustomer for Autocomplete ---
+const optionsWithSelected =
+  selectedCustomer && !customerOptions.some(c => c.mobile === selectedCustomer.mobile)
+    ? [selectedCustomer, ...customerOptions]
+    : customerOptions;
 
   // Fetch sections and products
   useEffect(() => {
-    getSections().then(res => setSections(res.data));
+    getSections().then(res => setSections(res));
     getProducts().then(fetchedProducts => setProducts(fetchedProducts.data));
   }, []);
 
@@ -265,8 +396,7 @@ export default function SalesPage() {
     };
 
     try {
-      const response = await createSale(payload);
-      const savedSale: Sale = response.data;
+      const savedSale: Sale = await createSale(payload);
 
       const invoiceProps = {
         ...SaleToInvoiceProps(savedSale, selectedSection),
@@ -522,17 +652,50 @@ export default function SalesPage() {
       {activeSale && (
         <Box sx={{ flex: 1, p: 2, backgroundColor: "#f0f4f8", borderRadius: 2, display: "flex", flexDirection: "column", gap: 2 }}>
           <Typography variant="h6">Summary</Typography>
-          <TextField
-            label="Customer Name (Optional)"
+          <Autocomplete
+            freeSolo
             size="small"
-            value={activeSale.customerName}
-            onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerName: e.target.value } : s))}
+            options={optionsWithSelected}
+            getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+            inputValue={customerInput}
+            value={selectedCustomer}
+            onInputChange={(_, newValue, reason) => {
+              if (reason === "input") handleCustomerInputChange(newValue);
+            }}
+            onChange={(_, value) => {
+              if (!activeSale) return;
+
+              if (typeof value === "string") {
+                // free-text name
+                handleCustomerInputChange(value);
+                setSelectedCustomer({ id: 0, name: value, label: value, mobile: activeSale.customerMobile || "", wallet_balance: 0 });
+              } else if (value) {
+                // existing customer picked
+                const name = value.name ?? "";
+                const mobile = value.mobile ?? "";
+                setSalesInstances(prev =>
+                  prev.map(s => s.id === activeSaleId ? { ...s, customerName: name, customerMobile: mobile } : s)
+                );
+                setSelectedCustomer(value);
+                setCustomerInput(name || mobile);
+              } else {
+                // cleared
+                setSelectedCustomer(null);
+                setCustomerInput("");
+                setSalesInstances(prev =>
+                  prev.map(s => s.id === activeSaleId ? { ...s, customerName: "", customerMobile: "" } : s)
+                );
+              }
+            }}
+            loading={loadingCustomers}
+            renderInput={(params) => <TextField {...params} label="Customer Name" size="small" />}
           />
+
           <TextField
             label="Customer Mobile *"
             size="small"
-            value={activeSale.customerMobile}
-            onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, customerMobile: e.target.value } : s))}
+            value={activeSale?.customerMobile || ""}
+            onChange={(e) => handleCustomerMobileChange(e.target.value)}
           />
           <Typography>Subtotal: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0)}</Typography>
           <TextField

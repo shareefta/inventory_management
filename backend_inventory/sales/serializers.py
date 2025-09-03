@@ -138,6 +138,26 @@ class SaleSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         user = request.user
 
+        # --- Handle customer ---
+        customer_name = validated_data.pop("customer_name", "").strip()
+        customer_mobile = validated_data.pop("customer_mobile", "").strip()
+        customer = None
+
+        if customer_mobile:
+            customer, created = Customer.objects.get_or_create(
+                mobile=customer_mobile,
+                defaults={"name": customer_name, "wallet_balance": 0},
+            )
+            if not created and customer_name and customer.name != customer_name:
+                customer.name = customer_name
+                customer.save(update_fields=["name"])
+
+        # Attach customer FK to sale
+        if customer:
+            validated_data["customer"] = customer
+            validated_data["customer_name"] = customer.name
+            validated_data["customer_mobile"] = customer.mobile
+
         # --- Generate invoice number ---
         section = validated_data["section"]
         today = timezone.now().date()

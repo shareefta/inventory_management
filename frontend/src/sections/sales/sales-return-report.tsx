@@ -63,7 +63,7 @@ const SalesReturnReportPage = () => {
       }
     })();
 
-    getSections().then((res) => setSections(res.data));
+    getSections().then((fetchedSections) => setSections(fetchedSections));
   }, []);
 
   const sectionMap = useMemo(
