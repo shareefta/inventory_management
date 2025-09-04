@@ -242,11 +242,11 @@ class SalesReturnViewSet(viewsets.ModelViewSet):
 
         # --- Handle wallet credit if chosen ---
         if refund_to_wallet and customer:
-            WalletTransaction.objects.create(
-                customer=customer,
-                amount=total_refund,
-                transaction_type="CREDIT",
-                description=f"Refund for SalesReturn #{sales_return.id}",
+            WalletTransaction.credit(
+                customer,
+                total_refund,
+                note=f"Refund for SalesReturn #{sales_return.id}",
+                sales_return_id=sales_return.id
             )
             customer.wallet_balance = F("wallet_balance") + total_refund
             customer.save(update_fields=["wallet_balance"])

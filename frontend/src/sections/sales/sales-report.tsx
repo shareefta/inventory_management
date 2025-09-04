@@ -19,7 +19,7 @@ import { getSales, getSale, Sale, deleteSale, getSections, SalesSection } from "
 
 import PosReceipt from "src/sections/sales/sales-invoice";
 
-const paymentModes = ["Cash", "Credit", "Online"] as const;
+const paymentModes = ["Cash", "Credit", "Bank", "Wallet"] as const;
 
 const SalesReportPage = () => {
   const navigate = useNavigate();

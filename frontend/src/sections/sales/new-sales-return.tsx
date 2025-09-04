@@ -23,6 +23,7 @@ import {
   Link,
 } from "@mui/material";
 
+import { creditWallet } from "src/api/customers";
 import { getSales, createSalesReturn, Sale } from "src/api/sales";
 
 interface SaleItemReturn {
@@ -127,7 +128,24 @@ export default function NewSalesReturnPage() {
         items_write: itemsToReturn,
       });
 
-      enqueueSnackbar(`Sales return processed via ${refundMethod.toUpperCase()}.`, { variant: "success" });
+      const totalRefund = itemsToReturn.reduce((sum, i) => {
+        const item = items.find((it) => it.id === i.sale_item);
+        return sum + (item?.price || 0) * i.quantity;
+      }, 0);
+
+      // 2️⃣ If refund method is wallet, credit the amount
+      if (refundMethod === "wallet" && sale.customer) {
+        await creditWallet(sale.customer, totalRefund, `Sales return for invoice #${sale.invoice_number}`);
+      }
+
+      if (refundMethod === "wallet") {
+        enqueueSnackbar(
+          `Refunded ${itemsToReturn.length} items via wallet. Total: ${totalRefund.toFixed(2)}`,
+          { variant: "success" }
+        );
+      } else {
+        enqueueSnackbar(`Sales return processed via ${refundMethod.toUpperCase()}.`, { variant: "success" });
+      }
 
       setSale(null);
       setItems([]);

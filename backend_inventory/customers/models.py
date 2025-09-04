@@ -47,3 +47,24 @@ class WalletTransaction(models.Model):
             Customer.objects.filter(pk=customer.pk).update(wallet_balance=F("wallet_balance") + amount)
             customer.refresh_from_db(fields=["wallet_balance"])
             return tx
+    
+    @classmethod
+    def debit(cls, customer, amount, *, note="", sale_id=None):
+        from django.db.models import F
+        with transaction.atomic():
+            # Limit to available balance (partial debit allowed)
+            debit_amount = min(customer.wallet_balance, amount)
+
+            if debit_amount <= 0:
+                return None  # nothing to debit
+
+            tx = cls.objects.create(
+                customer=customer,
+                tx_type=cls.DEBIT,
+                amount=debit_amount,
+                note=note,
+                sale_id=sale_id,
+            )
+            Customer.objects.filter(pk=customer.pk).update(wallet_balance=F("wallet_balance") - debit_amount)
+            customer.refresh_from_db(fields=["wallet_balance"])
+            return tx, (amount - debit_amount)  # return tx and remaining amount

@@ -49,9 +49,10 @@ export interface Sale {
   section: number;
   invoice_number: string;
   sale_datetime?: string;
+  customer?: number;
   customer_name?: string;
   customer_mobile?: string;
-  payment_mode?: "Cash" | "Credit" | "Online";
+  payment_mode?: "Cash" | "Credit" | "Bank" | "Wallet";
   discount?: number;
   total_amount?: number;
   created_by?: string;
@@ -70,7 +71,7 @@ export interface SalesReturn {
   created_at?: string;
   refund_amount: number;
   refund_to_wallet: boolean;
-  refund_mode: "cash" | "card" | "online" | "wallet";
+  refund_mode: "Cash" | "Bank" | "Wallet";
   created_by?: string;
   items: SalesReturnItem[];
 }

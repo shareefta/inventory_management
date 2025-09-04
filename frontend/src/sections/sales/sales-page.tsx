@@ -17,8 +17,8 @@ import {
   TableCell, TableBody, Fab, IconButton
 } from "@mui/material";
 
-import { getCustomers } from "src/api/customers";
 import { useAuthStore } from "src/store/use-auth-store";
+import { getCustomers, debitWallet } from "src/api/customers";
 import { getProducts, getProductByBarcode } from "src/api/products";
 import { getSections, Sale, createSale, SalesSection, getSectionPrices } from "src/api/sales";
 
@@ -62,7 +62,7 @@ export default function SalesPage() {
   const [products, setProducts] = useState<ProductProps[]>([]);
   const [cartItems, setCartItems] = useState<any[]>([]);
 
-  const [paymentMode, setPaymentMode] = useState<"Cash" | "Credit" | "Online">("Cash");
+  const [paymentMode, setPaymentMode] = useState<"Cash" | "Credit" | "Bank" | "Wallet">("Cash");
 
   // State for server-side search
   const [selectedValue, setSelectedValue] = useState<ProductProps | string | null>(null);
@@ -76,6 +76,9 @@ export default function SalesPage() {
   const [customerOptions, setCustomerOptions] = useState<CustomerProps[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProps | null>(null);
+  const [customerWalletBalance, setCustomerWalletBalance] = useState(0);
+  const [useWallet, setUseWallet] = useState(false);
+  const [walletDeduction, setWalletDeduction] = useState(0);
 
   // Debounce ref for mobile lookup
   const mobileLookupTimeout = useRef<number | null>(null);
@@ -176,105 +179,121 @@ export default function SalesPage() {
   const activeSale = salesInstances.find(s => s?.id === activeSaleId) ?? null;
 
   // --- Initialize customerInput when activeSale changes ---
-useEffect(() => {
-  if (!activeSale) {
-    setCustomerInput("");
-    setSelectedCustomer(null);
-    return;
-  }
-
-  // Only set input if it's empty (don't overwrite typed name)
-  setCustomerInput(prev => prev?.trim() ? prev : (activeSale.customerName || ""));
-  setSelectedCustomer(null);
-}, [activeSale]);
-
-// --- Fetch customer options for Autocomplete ---
-useEffect(() => {
-  const handler = setTimeout(() => {
-    const q = customerInput.trim();
-    if (!q) {
-      setCustomerOptions([]);
+  useEffect(() => {
+    if (!activeSale) {
+      setCustomerInput("");
+      setSelectedCustomer(null);
       return;
     }
 
-    setLoadingCustomers(true);
-    getCustomers(q, 50)
-      .then(items => setCustomerOptions(items))
-      .catch(() => setCustomerOptions([]))
-      .finally(() => setLoadingCustomers(false));
-  }, 300);
+    setCustomerInput(prev => prev?.trim() ? prev : (activeSale.customerName || ""));
 
-  return () => clearTimeout(handler);
-}, [customerInput]);
-
-// --- Handle Name input change ---
-const handleCustomerInputChange = (newValue: string) => {
-  setCustomerInput(newValue);
-  setSelectedCustomer(null); // Free-text input invalidates selectedCustomer
-  if (!activeSale) return;
-
-  setSalesInstances(prev =>
-    prev.map(s => s.id === activeSaleId
-      ? { ...s, customerName: newValue }
-      : s
-    )
-  );
-};
-
-// --- Handle Mobile input change ---
-const handleCustomerMobileChange = (val: string) => {
-  if (!activeSale) return;
-
-  // Update only mobile in sale
-  setSalesInstances(prev =>
-    prev.map(s => s.id === activeSaleId
-      ? { ...s, customerMobile: val }
-      : s
-    )
-  );
-
-  // Debounced mobile lookup
-  if (mobileLookupTimeout.current) window.clearTimeout(mobileLookupTimeout.current);
-  mobileLookupTimeout.current = window.setTimeout(async () => {
-    try {
-      const q = val.trim();
-      if (!q || q.length < 3) return;
-
-      const items = await getCustomers(q, 10);
-      const exact = items.find(c => c.mobile === q);
-
-      if (exact) {
-        setSelectedCustomer(exact);
-
-        // Only overwrite Name if empty
-        setSalesInstances(prev =>
-          prev.map(s =>
-            s.id === activeSaleId
-              ? {
-                  ...s,
-                  customerMobile: exact.mobile,
-                  customerName: s.customerName?.trim() ? s.customerName : (exact.name ?? "")
-                }
-              : s
-          )
-        );
-
-        setCustomerInput(prev => prev?.trim() ? prev : (exact.name ?? ""));
-      } else {
-        // No match, keep typed name intact
-        setSelectedCustomer(prev => (prev && prev.mobile === q ? prev : null));
-      }
-    } catch {
-      // ignore errors
+    // Auto-load customer based on mobile if exists
+    if (activeSale.customerMobile) {
+      getCustomers(activeSale.customerMobile, 1).then(customers => {
+        const exact = customers.find(c => c.mobile === activeSale.customerMobile);
+        if (exact) setSelectedCustomer(exact);
+        else setSelectedCustomer(null);
+      }).catch(() => setSelectedCustomer(null));
+    } else {
+      setSelectedCustomer(null);
     }
-  }, 400);
-};
+  }, [activeSale]);
 
-// --- Options including selectedCustomer for Autocomplete ---
-const optionsWithSelected =
-  selectedCustomer && !customerOptions.some(c => c.mobile === selectedCustomer.mobile)
-    ? [selectedCustomer, ...customerOptions]
-    : customerOptions;
+  // --- Fetch customer options for Autocomplete ---
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const q = customerInput.trim();
+      if (!q) {
+        setCustomerOptions([]);
+        return;
+      }
+
+      setLoadingCustomers(true);
+      getCustomers(q, 50)
+        .then(items => setCustomerOptions(items))
+        .catch(() => setCustomerOptions([]))
+        .finally(() => setLoadingCustomers(false));
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [customerInput]);
+
+  // --- Handle Name input change ---
+  const handleCustomerInputChange = (newValue: string) => {
+    setCustomerInput(newValue);
+    setSelectedCustomer(null); // Free-text input invalidates selectedCustomer
+    if (!activeSale) return;
+
+    setSalesInstances(prev =>
+      prev.map(s => s.id === activeSaleId
+        ? { ...s, customerName: newValue }
+        : s
+      )
+    );
+  };
+
+  // Handle Mobile input change
+  const handleCustomerMobileChange = (val: string) => {
+    if (!activeSale) return;
+
+    // Update mobile in the active sale
+    setSalesInstances(prev =>
+      prev.map(s =>
+        s.id === activeSaleId ? { ...s, customerMobile: val } : s
+      )
+    );
+
+    // Debounced lookup
+    if (mobileLookupTimeout.current) window.clearTimeout(mobileLookupTimeout.current);
+    mobileLookupTimeout.current = window.setTimeout(async () => {
+      const q = val.trim();
+      if (!q || q.length < 3) return; // avoid unnecessary calls
+
+      try {
+        const customers = await getCustomers(q, 1); // fetch matching customer
+        const exact = customers.find(c => c.mobile === q);
+
+        if (exact) {
+          // Customer found: auto-fill name and wallet
+          setSelectedCustomer(exact);
+          setCustomerInput(exact.name || "");
+
+          setSalesInstances(prev =>
+            prev.map(s =>
+              s.id === activeSaleId
+                ? { ...s, customerName: exact.name || "", customerMobile: exact.mobile }
+                : s
+            )
+          );
+        }
+        // If not found, do nothing (keep name/wallet as-is)
+      } catch (err) {
+        console.error(err);
+      }
+    }, 400);
+  };
+
+  // --- Options including selectedCustomer for Autocomplete ---
+  const optionsWithSelected =
+    selectedCustomer && !customerOptions.some(c => c.mobile === selectedCustomer.mobile)
+      ? [selectedCustomer, ...customerOptions]
+      : customerOptions;
+
+  // --- Sync wallet balance when customer changes ---
+  useEffect(() => {
+    if (!selectedCustomer) {
+      setCustomerWalletBalance(0);
+      setWalletDeduction(0);
+      setUseWallet(false);
+      return;
+    }
+
+    const balance = Number(selectedCustomer.wallet_balance || 0);
+    setCustomerWalletBalance(balance);
+    setWalletDeduction(prev => Math.min(prev, balance));
+    setUseWallet(balance > 0);
+  }, [selectedCustomer]);  
 
   // Fetch sections and products
   useEffect(() => {
@@ -371,14 +390,16 @@ const optionsWithSelected =
       return;
     }
 
+    const grandTotal = activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) - activeSale.discount;
+    const remainingPayment = grandTotal - walletDeduction;
+
     const payload = {
       section: selectedSection.id,
       channel: selectedSection.channel.id,
-      payment_mode: paymentMode,
+      payment_mode: remainingPayment > 0 ? paymentMode : "Wallet",
       discount: activeSale.discount,
-      total_amount:
-        activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) -
-        activeSale.discount,
+      total_amount: grandTotal,
+      wallet_deduction: walletDeduction,
       items_write: activeSale.cartItems.map((item) => ({
         product: item.productId,
         product_name: item.product_name,
@@ -397,6 +418,10 @@ const optionsWithSelected =
 
     try {
       const savedSale: Sale = await createSale(payload);
+
+      if (useWallet && walletDeduction > 0 && selectedCustomer) {
+        await debitWallet(selectedCustomer.id, walletDeduction, `Payment for Invoice #${savedSale.invoice_number}`);
+      }
 
       const invoiceProps = {
         ...SaleToInvoiceProps(savedSale, selectedSection),
@@ -650,76 +675,195 @@ const optionsWithSelected =
 
       {/* Right: Summary */}
       {activeSale && (
-        <Box sx={{ flex: 1, p: 2, backgroundColor: "#f0f4f8", borderRadius: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box
+          sx={{
+            flex: 1,
+            p: 2,
+            backgroundColor: "#f0f4f8",
+            borderRadius: 2,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
           <Typography variant="h6">Summary</Typography>
+
+          {/* Customer Name Autocomplete */}
           <Autocomplete
-            freeSolo
-            size="small"
-            options={optionsWithSelected}
-            getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-            inputValue={customerInput}
-            value={selectedCustomer}
-            onInputChange={(_, newValue, reason) => {
-              if (reason === "input") handleCustomerInputChange(newValue);
-            }}
-            onChange={(_, value) => {
-              if (!activeSale) return;
+  freeSolo
+  size="small"
+  options={optionsWithSelected} // existing customers + selectedCustomer
+  getOptionLabel={(option) =>
+    typeof option === "string" ? option : option.name || option.label
+  }
+  inputValue={customerInput}
+  value={selectedCustomer}
+  onInputChange={(_, newValue, reason) => {
+    if (reason === "input") {
+      setCustomerInput(newValue);     // update input
+      setSelectedCustomer(null);      // free text invalidates selection
+      if (!activeSale) return;
+      setSalesInstances(prev =>
+        prev.map(s =>
+          s.id === activeSaleId ? { ...s, customerName: newValue } : s
+        )
+      );
+    }
+  }}
+  onChange={(_, value) => {
+    if (!activeSale) return;
 
-              if (typeof value === "string") {
-                // free-text name
-                handleCustomerInputChange(value);
-                setSelectedCustomer({ id: 0, name: value, label: value, mobile: activeSale.customerMobile || "", wallet_balance: 0 });
-              } else if (value) {
-                // existing customer picked
-                const name = value.name ?? "";
-                const mobile = value.mobile ?? "";
-                setSalesInstances(prev =>
-                  prev.map(s => s.id === activeSaleId ? { ...s, customerName: name, customerMobile: mobile } : s)
-                );
-                setSelectedCustomer(value);
-                setCustomerInput(name || mobile);
-              } else {
-                // cleared
-                setSelectedCustomer(null);
-                setCustomerInput("");
-                setSalesInstances(prev =>
-                  prev.map(s => s.id === activeSaleId ? { ...s, customerName: "", customerMobile: "" } : s)
-                );
-              }
-            }}
-            loading={loadingCustomers}
-            renderInput={(params) => <TextField {...params} label="Customer Name" size="small" />}
-          />
+    if (!value) {
+      // Cleared
+      setSelectedCustomer(null);
+      setCustomerInput("");
+      setSalesInstances(prev =>
+        prev.map(s =>
+          s.id === activeSaleId
+            ? { ...s, customerName: "", customerMobile: "" }
+            : s
+        )
+      );
+      setCustomerWalletBalance(0);
+      setWalletDeduction(0);
+      setUseWallet(false);
+    } else if (typeof value === "string") {
+      // Free-text
+      setSelectedCustomer({
+        id: 0,
+        name: value,
+        label: value,
+        mobile: activeSale.customerMobile || "",
+        wallet_balance: 0,
+      });
+      setCustomerInput(value);
+    } else {
+      // Existing customer selected
+      setSelectedCustomer({
+        ...value,
+        wallet_balance: Number(value.wallet_balance || 0),
+      });
+      setCustomerInput(value.name || value.mobile);
 
+      setSalesInstances(prev =>
+        prev.map(s =>
+          s.id === activeSaleId
+            ? { ...s, customerName: value.name || "", customerMobile: value.mobile || "" }
+            : s
+        )
+      );
+    }
+  }}
+  loading={loadingCustomers}
+  renderInput={(params) => (
+    <TextField {...params} label="Customer Name" size="small" />
+  )}
+/>
+
+          {/* Customer Mobile */}
           <TextField
             label="Customer Mobile *"
             size="small"
-            value={activeSale?.customerMobile || ""}
+            value={activeSale.customerMobile || ""}
             onChange={(e) => handleCustomerMobileChange(e.target.value)}
           />
-          <Typography>Subtotal: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0)}</Typography>
+
+          {/* Wallet Balance (always shown) */}
+          <Typography sx={{ color: "blue", fontWeight: "bold" }}>
+            Wallet Balance: {customerWalletBalance.toFixed(2)}
+          </Typography>
+
+          {/* Use Wallet Selector */}
+          <FormControl size="small">
+            <InputLabel>Use Wallet</InputLabel>
+            <Select
+              value={useWallet ? "yes" : "no"}
+              onChange={(e) => setUseWallet(e.target.value === "yes")}
+              disabled={customerWalletBalance <= 0}
+            >
+              <MenuItem value="no">No</MenuItem>
+              <MenuItem value="yes">Yes</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Subtotal & Discount */}
+          <Typography>
+            Subtotal: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0)}
+          </Typography>
           <TextField
             label="Discount"
             type="number"
             size="small"
             value={activeSale.discount}
-            onChange={(e) => setSalesInstances(prev => prev.map(s => s.id === activeSaleId ? { ...s, discount: Number(e.target.value) } : s))}
+            onChange={(e) =>
+              setSalesInstances((prev) =>
+                prev.map((s) =>
+                  s.id === activeSaleId
+                    ? { ...s, discount: Number(e.target.value) }
+                    : s
+                )
+              )
+            }
           />
+
+          {/* Grand Total */}
           <Typography sx={{ fontWeight: "bold", color: "green" }}>
-            Grand Total: {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) - activeSale.discount}
+            Grand Total:{" "}
+            {activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) -
+              activeSale.discount}
           </Typography>
+
+          {/* Wallet Deduction */}
+          {useWallet && (
+            <TextField
+              label="Wallet Deduction"
+              type="number"
+              size="small"
+              value={walletDeduction}
+              onChange={(e) => {
+                let val = Number(e.target.value) || 0;
+                const grandTotal =
+                  activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) -
+                  activeSale.discount;
+
+                if (val > customerWalletBalance) val = customerWalletBalance;
+                if (val > grandTotal) val = grandTotal;
+
+                setWalletDeduction(val);
+              }}
+              inputProps={{
+                min: 0,
+                max: Math.min(
+                  customerWalletBalance,
+                  activeSale.cartItems.reduce((sum, i) => sum + i.total, 0) -
+                    activeSale.discount
+                ),
+              }}
+            />
+          )}
+
+          {/* Payment Mode Selector */}
           <FormControl size="small">
             <InputLabel>Payment Mode</InputLabel>
             <Select
               value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value as "Cash" | "Credit" | "Online")}
+              onChange={(e) =>
+                setPaymentMode(
+                  e.target.value as "Cash" | "Credit" | "Bank" | "Wallet"
+                )
+              }
             >
               <MenuItem value="Cash">Cash</MenuItem>
               <MenuItem value="Credit">Credit</MenuItem>
-              <MenuItem value="Online">Online</MenuItem>
+              <MenuItem value="Online">Bank</MenuItem>
+              <MenuItem value="Online">Wallet</MenuItem>
             </Select>
           </FormControl>
-          <Button variant="contained" color="primary" onClick={handleCheckout}>Checkout</Button>
+
+          {/* Checkout Button */}
+          <Button variant="contained" color="primary" onClick={handleCheckout}>
+            Checkout
+          </Button>
         </Box>
       )}
 

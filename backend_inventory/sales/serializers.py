@@ -373,13 +373,12 @@ class SalesReturnSerializer(serializers.ModelSerializer):
             pl.quantity = F("quantity") + obj.quantity
             pl.save(update_fields=["quantity"])
 
-        # --- Refund handling ---
         if sales_return.refund_to_wallet and customer:
-            WalletTransaction.objects.create(
-                customer=customer,
-                amount=total_refund,
-                transaction_type="CREDIT",
-                description=f"Refund for SalesReturn #{sales_return.id}",
+            WalletTransaction.credit(
+                customer,
+                total_refund,
+                note=f"Refund for SalesReturn #{sales_return.id}",
+                sales_return_id=sales_return.id
             )
 
         return sales_return
